@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <GoogleMobileAds/GoogleMobileAds.h>
 
+#import "NeftaExtras.h"
 #import <NeftaSDK/NeftaSDK-Swift.h>
 
 typedef NS_ENUM(NSInteger, NeftaAdapterErrorCode) {

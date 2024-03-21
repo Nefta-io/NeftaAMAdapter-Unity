@@ -23,7 +23,7 @@
         return;
     }
 
-    [_adapter.Plugin PrepareRendererWithView: viewController.view];
+    [_adapter.Plugin PrepareRendererWithViewController: viewController];
     if (_muteAudio) {
         [_adapter.Plugin Mute: true];
     }

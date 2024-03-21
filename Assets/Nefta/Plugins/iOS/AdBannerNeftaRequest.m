@@ -42,7 +42,7 @@
 }
 
 - (nonnull UIView *)view {
-    return [_adapter.Plugin GetViewForPlacement: _placement];
+    return [_adapter.Plugin GetViewForPlacement: _placement show: false];
 }
 
 

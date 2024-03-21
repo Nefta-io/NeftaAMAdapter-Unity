@@ -23,7 +23,7 @@
         return;
     }
 
-    [_adapter.Plugin PrepareRendererWithView: viewController.view];
+    [_adapter.Plugin PrepareRendererWithViewController: viewController];
     [_adapter.Plugin ShowWithId: _placement._id];
 }
 

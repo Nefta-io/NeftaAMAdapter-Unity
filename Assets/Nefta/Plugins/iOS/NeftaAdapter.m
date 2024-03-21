@@ -1,9 +1,7 @@
 #import "NeftaAdapter.h"
-#import <NeftaSDK/NeftaSDK-Swift.h>
 #import "AdBannerNeftaRequest.h"
 #import "InterstitialNeftaRequest.h"
 #import "RewardedVideoNeftaRequest.h"
-#import "NeftaExtras.h"
 
 @implementation NeftaAdapter
 
@@ -28,7 +26,7 @@ static NSMutableDictionary<NSString *, id<NeftaRequest>> *_requests;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {1, 0, 0};
+    GADVersionNumber version = {1, 0, 1};
     return version;
 }
 
@@ -99,8 +97,7 @@ static NSMutableDictionary<NSString *, id<NeftaRequest>> *_requests;
 
     UIApplication *application = [UIApplication sharedApplication];
     UIWindow *keyWindow = application.keyWindow;
-    UIView *rootView = keyWindow.rootViewController.view;
-    [_plugin PrepareRendererWithView: rootView];
+    [_plugin PrepareRendererWithViewController: keyWindow.rootViewController];
     
     [_plugin LoadWithId: placementId];
 }
