@@ -26,7 +26,7 @@ static NSMutableDictionary<NSString *, id<NeftaRequest>> *_requests;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {1, 0, 1};
+    GADVersionNumber version = {1, 0, 2};
     return version;
 }
 
