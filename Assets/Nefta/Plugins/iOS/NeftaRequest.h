@@ -6,8 +6,10 @@
 
 @property NeftaAdapter *_adapter;
 @property Placement *_placement;
+@property NSString *_placementId;
+@property int _state;
 
-- (void) OnLoadFail: (NSString *) error;
+- (void) OnLoadFail: (NSString *)error;
 - (void) OnLoad: (Placement *)placement;
 - (void) OnShow: (NSInteger)width height:(NSInteger)height;
 - (void) OnClick;

@@ -13,7 +13,7 @@ NSString *_errorDomain = @"NeftaAMAdapter";
 NSString *_idKey = @"parameter";
 
 static NeftaPlugin_iOS *_plugin;
-static NSMutableDictionary<NSString *, id<NeftaRequest>> *_requests;
+static NSMutableArray *_requests;
 
 + (GADVersionNumber)adSDKVersion {
     NSString *versionString = NeftaPlugin_iOS.Version;
@@ -26,7 +26,7 @@ static NSMutableDictionary<NSString *, id<NeftaRequest>> *_requests;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {1, 0, 2};
+    GADVersionNumber version = {1, 0, 3};
     return version;
 }
 
@@ -50,33 +50,65 @@ static NSMutableDictionary<NSString *, id<NeftaRequest>> *_requests;
 
 + (void) Init {
     _plugin.OnLoadFail = ^(Placement *placement, NSString *error) {
-        id<NeftaRequest> request = _requests[placement._id];
-        [request OnLoadFail: error];
-        [_requests removeObjectForKey: placement._id];
+        for (int i = 0; i < _requests.count; i++) {
+            id<NeftaRequest> r = _requests[i];
+            if ([r._placementId isEqualToString: placement._id] && r._state == 0) {
+                [r OnLoadFail: error];
+                [_requests removeObject: r];
+                return;
+            }
+        }
     };
     _plugin.OnLoad = ^(Placement *placement) {
-        id<NeftaRequest> request = _requests[placement._id];
-        [request OnLoad: placement];
+        for (int i = 0; i < _requests.count; i++) {
+            id<NeftaRequest> r = _requests[i];
+            if ([r._placementId isEqualToString: placement._id] && r._state == 0) {
+                r._state = 1;
+                [r OnLoad: placement];
+                return;
+            }
+        }
     };
     _plugin.OnShow = ^(Placement *placement, NSInteger width, NSInteger height) {
-        id<NeftaRequest> request = _requests[placement._id];
-        [request OnShow: width height: height];
+        for (int i = 0; i < _requests.count; i++) {
+            id<NeftaRequest> r = _requests[i];
+            if ([r._placementId isEqualToString: placement._id] && r._state == 0) {
+                r._state = 2;
+                [r OnShow: width height: height];
+                return;
+            }
+        }
     };
     _plugin.OnClick = ^(Placement *placement) {
-        id<NeftaRequest> request = _requests[placement._id];
-        [request OnClick];
+        for (int i = 0; i < _requests.count; i++) {
+            id<NeftaRequest> r = _requests[i];
+            if ([r._placementId isEqualToString: placement._id] && r._state == 2) {
+                [r OnClick];
+                return;
+            }
+        }
     };
     _plugin.OnReward = ^(Placement *placement) {
-        id<NeftaRequest> request = _requests[placement._id];
-        [request OnRewarded];
+        for (int i = 0; i < _requests.count; i++) {
+            id<NeftaRequest> r = _requests[i];
+            if ([r._placementId isEqualToString: placement._id] && r._state == 2) {
+                [r OnRewarded];
+                return;
+            }
+        }
     };
     _plugin.OnClose = ^(Placement *placement) {
-        id<NeftaRequest> request = _requests[placement._id];
-        [request OnClose];
-        [_requests removeObjectForKey: placement._id];
+        for (int i = 0; i < _requests.count; i++) {
+            id<NeftaRequest> r = _requests[i];
+            if ([r._placementId isEqualToString: placement._id] && r._state == 2) {
+                [r OnClose];
+                [_requests removeObject: r];
+                return;
+            }
+        }
     };
     
-    _requests = [[NSMutableDictionary alloc] init];
+    _requests = [NSMutableArray array];
     
     [_plugin EnableAds: true];
 }
@@ -92,8 +124,8 @@ static NSMutableDictionary<NSString *, id<NeftaRequest>> *_requests;
     _ErrorDomain = _errorDomain;
     _Plugin = _plugin;
 
-    AdBannerNeftaRequest *request = [AdBannerNeftaRequest Init: self callback: completionHandler];
-    _requests[placementId] = request;
+    AdBannerNeftaRequest *request = [AdBannerNeftaRequest Init: self placementId: placementId callback: completionHandler];
+    [_requests addObject: request];
 
     UIApplication *application = [UIApplication sharedApplication];
     UIWindow *keyWindow = application.keyWindow;
@@ -113,8 +145,8 @@ static NSMutableDictionary<NSString *, id<NeftaRequest>> *_requests;
     _ErrorDomain = _errorDomain;
     _Plugin = _plugin;
     
-    InterstitialNeftaRequest *request = [InterstitialNeftaRequest Init: self callback: completionHandler];
-    _requests[placementId] = request;
+    InterstitialNeftaRequest *request = [InterstitialNeftaRequest Init: self placementId: placementId callback: completionHandler];
+    [_requests addObject: request];
     
     [_plugin LoadWithId: placementId];
 }
@@ -130,12 +162,12 @@ static NSMutableDictionary<NSString *, id<NeftaRequest>> *_requests;
     _ErrorDomain = _errorDomain;
     _Plugin = _plugin;
     
-    RewardedVideoNeftaRequest *request = [RewardedVideoNeftaRequest Init: self callback: completionHandler];
+    RewardedVideoNeftaRequest *request = [RewardedVideoNeftaRequest Init: self placementId: placementId callback: completionHandler];
     NeftaExtras *extras = adConfiguration.extras;
     if (extras != nil) {
         request.muteAudio = extras.muteAudio;
     }
-    _requests[placementId] = request;
+    [_requests addObject: request];
     
     [_plugin LoadWithId: placementId];
 }

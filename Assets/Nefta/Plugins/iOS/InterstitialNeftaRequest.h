@@ -4,6 +4,6 @@
 
 @property GADMediationInterstitialLoadCompletionHandler _Nullable callback;
 
-+ (instancetype _Nonnull)Init:(NeftaAdapter *_Nonnull)adapter callback:(nonnull GADMediationInterstitialLoadCompletionHandler)callback;
++ (instancetype _Nonnull)Init:(NeftaAdapter *_Nonnull)adapter  placementId:(NSString *_Nonnull)placementI callback:(nonnull GADMediationInterstitialLoadCompletionHandler)callback;
 
 @end

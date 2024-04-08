@@ -7,11 +7,15 @@
 
 @synthesize _adapter;
 @synthesize _placement;
+@synthesize _placementId;
+@synthesize _state;
 
-+ (instancetype)Init:(NeftaAdapter *)adapter callback:(nonnull GADMediationBannerLoadCompletionHandler)callback {
++ (instancetype)Init:(NeftaAdapter *)adapter placementId:(NSString *)placementId callback:(nonnull GADMediationBannerLoadCompletionHandler)callback {
     AdBannerNeftaRequest *instance = [[self alloc] init];
     instance._adapter = adapter;
     instance.callback = callback;
+    instance._placementId = placementId;
+    instance._state = 0;
     return instance;
 }
 
