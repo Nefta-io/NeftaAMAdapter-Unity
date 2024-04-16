@@ -26,7 +26,7 @@ static NSMutableArray *_requests;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {1, 0, 3};
+    GADVersionNumber version = {1, 0, 4};
     return version;
 }
 
@@ -184,6 +184,7 @@ extern "C" {
     void EnableLogging(bool enable);
     void * NeftaPlugin_Init(const char *appId);
     void NeftaPlugin_Record(void *instance, const char *event);
+    const char * NeftaPlugin_GetNuid(void *instance, bool present);
 #ifdef __cplusplus
 }
 #endif
@@ -202,8 +203,8 @@ void NeftaPlugin_Record(void *instance, const char *event) {
     [_plugin RecordWithEvent: [NSString stringWithUTF8String: event]];
 }
 
-const char * NeftaPlugin_ShowNuid(void *instance) {
-    const char *string = [[_plugin ShowNuid] UTF8String];
+const char * NeftaPlugin_GetNuid(void *instance, bool present) {
+    const char *string = [[_plugin GetNuidWithPresent: present] UTF8String];
     char *returnString = (char *)malloc(strlen(string) + 1);
     strcpy(returnString, string);
     return returnString;
