@@ -26,7 +26,7 @@ static NSMutableArray *_requests;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {1, 0, 4};
+    GADVersionNumber version = {1, 0, 5};
     return version;
 }
 
@@ -41,6 +41,7 @@ static NSMutableArray *_requests;
     dispatch_async(dispatch_get_main_queue(), ^{
         if (_plugin == nil) {
             completionHandler([NSError errorWithDomain: _errorDomain code: NeftaAdapterErrorCodeInvalidServerParameters userInfo: nil]);
+            return;
         }
         [NeftaAdapter Init];
         
