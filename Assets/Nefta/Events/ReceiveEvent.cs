@@ -36,12 +36,8 @@ namespace Nefta.Core.Events
         /// </summary>
         public ReceiveMethod _method;
         
-        public override RecordedEvent GetRecordedEvent()
-        {
-            var receiveEvent = base.GetRecordedEvent();
-            receiveEvent._type = "receive";
-            receiveEvent._subCategory = MethodToString[_method];
-            return receiveEvent;
-        }
+        internal override string _eventType => "receive";
+        
+        internal override string _subCategory => MethodToString[_method];
     }
 }

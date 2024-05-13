@@ -26,7 +26,7 @@ static NSMutableArray *_requests;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {1, 0, 5};
+    GADVersionNumber version = {1, 1, 0};
     return version;
 }
 
@@ -73,7 +73,7 @@ static NSMutableArray *_requests;
     _plugin.OnShow = ^(Placement *placement, NSInteger width, NSInteger height) {
         for (int i = 0; i < _requests.count; i++) {
             id<NeftaRequest> r = _requests[i];
-            if ([r._placementId isEqualToString: placement._id] && r._state == 0) {
+            if ([r._placementId isEqualToString: placement._id] && r._state == 1) {
                 r._state = 2;
                 [r OnShow: width height: height];
                 return;
