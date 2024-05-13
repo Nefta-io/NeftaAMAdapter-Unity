@@ -41,7 +41,7 @@ namespace Nefta.Editor
             }
             
             _error = null;
-#if UNITY_2021
+#if UNITY_2021_1_OR_NEWER
             GetAndroidVersions();
 #endif
             GetIosVersions();
@@ -60,7 +60,7 @@ namespace Nefta.Editor
                 return;
             }
             
-#if UNITY_2021
+#if UNITY_2021_1_OR_NEWER
             if (_androidAdapterVersion != _iosAdapterVersion)
             {
                 DrawVersion("Nefta AdMob Android Custom Adapter version", _androidAdapterVersion);
@@ -159,7 +159,7 @@ namespace Nefta.Editor
             EditorGUILayout.EndHorizontal();
         }
     
-#if UNITY_2021
+#if UNITY_2021_1_OR_NEWER
         private void GetAndroidVersions()
         {
             var guids = AssetDatabase.FindAssets("NeftaAMAdapter");
