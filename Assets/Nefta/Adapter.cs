@@ -34,15 +34,6 @@ namespace Nefta
 #endif
         private static StringBuilder _eventBuilder;
         
-        public static void EnableLogging(bool enable)
-        {
-#if UNITY_EDITOR
-            _isLoggingEnabled = enable;
-#elif UNITY_IOS
-            NeftaPlugin_EnableLogging(enable);
-#endif
-        }
-        
         public static void Init()
         {
             _eventBuilder = new StringBuilder(128);

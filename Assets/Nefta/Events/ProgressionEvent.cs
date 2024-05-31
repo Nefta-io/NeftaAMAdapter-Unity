@@ -127,5 +127,11 @@ namespace Nefta.Core.Events
         internal override string _category => ProgressionToString[_type][_status];
         
         internal override string _subCategory => ProgressionSourceToString[_source];
+                
+        public ProgressionEvent(Type type, Status status)
+        {
+            _type = type;
+            _status = status;
+        }
     }
 }

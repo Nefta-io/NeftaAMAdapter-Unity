@@ -124,6 +124,7 @@ namespace Nefta.Editor
                 AssetDatabase.Refresh();
             }
             Selection.objects = new UnityEngine.Object[] { configuration };
+            EditorUtility.FocusProjectWindow();
         }
         
         [MenuItem("Window/Nefta/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
