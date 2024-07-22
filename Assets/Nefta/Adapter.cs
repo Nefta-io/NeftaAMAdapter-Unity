@@ -51,7 +51,7 @@ namespace Nefta
             }
             UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeChange;
 #elif UNITY_IOS
-            EnableLogging(configuration._isLoggingEnabled);
+            NeftaPlugin_EnableLogging(configuration._isLoggingEnabled);
             _plugin = NeftaPlugin_Init(configuration._iOSAppId);
 #elif UNITY_ANDROID
             AndroidJavaClass unityClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");

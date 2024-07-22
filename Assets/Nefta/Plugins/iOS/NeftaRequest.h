@@ -11,7 +11,7 @@
 
 - (void) OnLoadFail: (NSString *)error;
 - (void) OnLoad: (Placement *)placement;
-- (void) OnShow: (NSInteger)width height:(NSInteger)height;
+- (void) OnShow;
 - (void) OnClick;
 - (void) OnRewarded;
 - (void) OnClose;

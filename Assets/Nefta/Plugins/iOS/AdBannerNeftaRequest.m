@@ -29,7 +29,7 @@
     _adEventDelegate = _callback(self, nil);
 }
 
-- (void)OnShow:(NSInteger)width height:(NSInteger)height {
+- (void)OnShow {
     [_adEventDelegate reportImpression];
 }
 

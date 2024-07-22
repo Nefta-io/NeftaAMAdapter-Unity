@@ -1,0 +1,17 @@
+{
+    "name": "AdDemo",
+    "rootNamespace": "",
+    "references": [
+        "GUID:8f23dc801c30b4ed085fca219588677a",
+        "GUID:760a4c7888534400e882b82c5b3fba06"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
