@@ -11,5 +11,5 @@ typedef NS_ENUM(NSInteger, NeftaAdapterErrorCode) {
 
 @interface NeftaAdapter : NSObject <GADMediationAdapter>
 @property NSString *ErrorDomain;
-@property NeftaPlugin_iOS *Plugin;
+@property NeftaPlugin *Plugin;
 @end

@@ -12,11 +12,11 @@
 NSString *_errorDomain = @"NeftaAMAdapter";
 NSString *_idKey = @"parameter";
 
-static NeftaPlugin_iOS *_plugin;
+static NeftaPlugin *_plugin;
 static NSMutableArray *_requests;
 
 + (GADVersionNumber)adSDKVersion {
-    NSString *versionString = NeftaPlugin_iOS.Version;
+    NSString *versionString = NeftaPlugin.Version;
     NSArray<NSString *> *versionComponents = [versionString componentsSeparatedByString:@"."];
     GADVersionNumber version = {
         versionComponents[0].integerValue,
@@ -26,7 +26,7 @@ static NSMutableArray *_requests;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {1, 1, 1};
+    GADVersionNumber version = {1, 1, 2};
     return version;
 }
 
@@ -37,7 +37,7 @@ static NSMutableArray *_requests;
         return;
     }
 
-    _plugin = NeftaPlugin_iOS._instance;
+    _plugin = NeftaPlugin._instance;
     dispatch_async(dispatch_get_main_queue(), ^{
         if (_plugin == nil) {
             completionHandler([NSError errorWithDomain: _errorDomain code: NeftaAdapterErrorCodeInvalidServerParameters userInfo: nil]);
@@ -191,11 +191,11 @@ extern "C" {
 #endif
 
 void NeftaPlugin_EnableLogging(bool enable) {
-    [NeftaPlugin_iOS EnableLogging: enable];
+    [NeftaPlugin EnableLogging: enable];
 }
 
 void * NeftaPlugin_Init(const char *appId) {
-    _plugin = [NeftaPlugin_iOS InitWithAppId: [NSString stringWithUTF8String: appId]];
+    _plugin = [NeftaPlugin InitWithAppId: [NSString stringWithUTF8String: appId]];
     [NeftaAdapter Init];
     return (__bridge_retained void *)_plugin;
 }
