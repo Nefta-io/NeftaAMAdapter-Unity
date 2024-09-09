@@ -26,7 +26,7 @@ static NSMutableArray *_requests;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {1, 1, 3};
+    GADVersionNumber version = {1, 2, 0};
     return version;
 }
 

@@ -19,7 +19,7 @@
 }
 
 - (void)presentFromViewController:(nonnull UIViewController *)viewController {
-    if (![_adapter.Plugin IsReadyWithId: _placement._id]) {
+    if ([_adapter.Plugin IsReadyWithId: _placement._id] == NeftaPlugin.PlacementReady) {
         NSError *showError = [NSError errorWithDomain: _adapter.ErrorDomain
                                                  code: NeftaAdapterErrorCodeAdNotReady
                                              userInfo: @{NSLocalizedDescriptionKey : @"Ad not ready."}];
