@@ -1,5 +1,7 @@
 using System;
 using GoogleMobileAds.Api;
+using Nefta;
+using Nefta.Events;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -44,6 +46,13 @@ namespace AdDemo
             _bannerView.OnAdClicked += BannerOnAdClickedEvent;
             _bannerView.OnAdFullScreenContentOpened += BannerOnAdScreenPresentedEvent;
             _bannerView.OnAdFullScreenContentClosed += BannerOnAdScreenDismissedEvent;
+            
+            var type = (Nefta.Events.Type) UnityEngine.Random.Range(0, 7);
+            var status = (Status) UnityEngine.Random.Range(0, 3);
+            var source = (Source) UnityEngine.Random.Range(0, 7);
+            var value = UnityEngine.Random.Range(0, 101);
+            Adapter.Record(new ProgressionEvent(type, status)
+                { _source = source, _name = $"progression_{type}_{status} {source} {value}", _value = value });
             
             SetStatus("Loading banner ad..");
             var adRequest = new AdRequest();

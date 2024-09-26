@@ -4,9 +4,8 @@ using System.Runtime.InteropServices;
 using AOT;
 #endif
 using System.Text;
-using Nefta.Core.Events;
+using Nefta.Events;
 using UnityEngine;
-using UnityEngine.Assertions;
 
 namespace Nefta
 {
@@ -23,7 +22,7 @@ namespace Nefta
         private static extern IntPtr NeftaPlugin_Init(string appId);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_Record(IntPtr instance, string recordedEvent);
+        private static extern void NeftaPlugin_Record(IntPtr instance, int type, int category, int subCategory, string nameValue, long value, string customPayload);
 
         [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(IntPtr instance, bool present);
@@ -64,37 +63,27 @@ namespace Nefta
 
         public static void Record(GameEvent gameEvent)
         {
-            _eventBuilder.Clear();
-            _eventBuilder.Append("{\"event_type\":\"");
-            _eventBuilder.Append(gameEvent._eventType);
-            _eventBuilder.Append("\",\"event_category\":\"");
-            _eventBuilder.Append(gameEvent._category);
-            _eventBuilder.Append("\",\"value\":");
-            _eventBuilder.Append(gameEvent._value.ToString());
-            _eventBuilder.Append(",\"event_sub_category\":\"");
-            _eventBuilder.Append(gameEvent._subCategory);
-            if (gameEvent._name != null)
+            var type = gameEvent._eventType;
+            var category = gameEvent._category;
+            var subCategory = gameEvent._subCategory;
+            var name = gameEvent._name;
+            if (name != null)
             {
-                _eventBuilder.Append("\",\"item_name\":\"");
-                _eventBuilder.Append(JavaScriptStringEncode(gameEvent._name));
+                name = JavaScriptStringEncode(gameEvent._name);
             }
-            if (gameEvent._customString != null)
+            var value = gameEvent._value;
+            var customPayload = gameEvent._customString;
+            if (customPayload != null)
             {
-                _eventBuilder.Append("\",\"custom_publisher_payload\":\"");
-                _eventBuilder.Append(JavaScriptStringEncode(gameEvent._customString));
+                customPayload = JavaScriptStringEncode(gameEvent._customString);
             }
-            _eventBuilder.Append("\"}");
-            var eventString = _eventBuilder.ToString();
+            
 #if UNITY_EDITOR
-            Assert.IsTrue(_plugin, "Before recording game event Init should be called");
-            if (_isLoggingEnabled)
-            {
-                Debug.Log($"Recording {eventString}");
-            }
+            Debug.Log($"Recording {type}, {category}, {subCategory}, {name}, {value}, {customPayload}");
 #elif UNITY_IOS
-            NeftaPlugin_Record(_plugin, eventString);
+            NeftaPlugin_Record(_plugin, type, category, subCategory, name, value, customPayload);
 #elif UNITY_ANDROID
-            _plugin.Call("Record", eventString);
+            _plugin.Call("Record", type, category, subCategory, name, value, customPayload);
 #endif
         }
         

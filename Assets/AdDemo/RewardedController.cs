@@ -1,5 +1,7 @@
 using System;
 using GoogleMobileAds.Api;
+using Nefta;
+using Nefta.Events;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -38,6 +40,11 @@ namespace AdDemo
         
         private void OnLoadClick()
         {
+            var category = (ResourceCategory) UnityEngine.Random.Range(0, 9);
+            var method = (SpendMethod) UnityEngine.Random.Range(0, 8);
+            var value = UnityEngine.Random.Range(0, 101);
+            Adapter.Record(new SpendEvent(category) { _method = method, _name = $"spend_{category} {method} {value}", _value = value });
+            
             SetStatus("Loading rewarded...");
             var adRequest = new AdRequest();
 

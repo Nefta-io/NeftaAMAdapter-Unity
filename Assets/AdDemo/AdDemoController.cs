@@ -1,4 +1,3 @@
-using Nefta.Core.Events;
 using UnityEngine;
 
 namespace AdDemo
@@ -14,8 +13,7 @@ namespace AdDemo
         private void Awake()
         {
             Nefta.Adapter.Init();
-            Nefta.Adapter.Record(new ProgressionEvent(Type.Unlock, Status.Complete) { _source = Source.CoreContent, _name = "core-42"});
-            
+
             _banner.Init();
             _interstitial.Init();
             _rewarded.Init();
