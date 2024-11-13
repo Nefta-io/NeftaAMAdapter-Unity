@@ -1,7 +1,7 @@
 #import "NeftaAdapter.h"
-#import "AdBannerNeftaRequest.h"
-#import "InterstitialNeftaRequest.h"
-#import "RewardedVideoNeftaRequest.h"
+#import "NeftaBanner.h"
+#import "NeftaInterstitial.h"
+#import "NeftaRewarded.h"
 
 @implementation NeftaAdapter
 
@@ -13,7 +13,6 @@ NSString *_errorDomain = @"NeftaAMAdapter";
 NSString *_idKey = @"parameter";
 
 static NeftaPlugin *_plugin;
-static NSMutableArray *_requests;
 
 + (GADVersionNumber)adSDKVersion {
     NSString *versionString = NeftaPlugin.Version;
@@ -26,7 +25,7 @@ static NSMutableArray *_requests;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {1, 3, 0};
+    GADVersionNumber version = {2, 0, 0};
     return version;
 }
 
@@ -43,75 +42,10 @@ static NSMutableArray *_requests;
             completionHandler([NSError errorWithDomain: _errorDomain code: NeftaAdapterErrorCodeInvalidServerParameters userInfo: nil]);
             return;
         }
-        [NeftaAdapter Init];
+        [_plugin EnableAds: true];
         
         completionHandler(nil);
     });
-}
-
-+ (void) Init {
-    _plugin.OnLoadFail = ^(Placement *placement, NSString *error) {
-        for (int i = 0; i < _requests.count; i++) {
-            id<NeftaRequest> r = _requests[i];
-            if ([r._placementId isEqualToString: placement._id] && r._state == 0) {
-                [r OnLoadFail: error];
-                [_requests removeObject: r];
-                return;
-            }
-        }
-    };
-    _plugin.OnLoad = ^(Placement *placement, NSInteger width, NSInteger height) {
-        for (int i = 0; i < _requests.count; i++) {
-            id<NeftaRequest> r = _requests[i];
-            if ([r._placementId isEqualToString: placement._id] && r._state == 0) {
-                r._state = 1;
-                [r OnLoad: placement];
-                return;
-            }
-        }
-    };
-    _plugin.OnShow = ^(Placement *placement) {
-        for (int i = 0; i < _requests.count; i++) {
-            id<NeftaRequest> r = _requests[i];
-            if ([r._placementId isEqualToString: placement._id] && r._state == 1) {
-                r._state = 2;
-                [r OnShow];
-                return;
-            }
-        }
-    };
-    _plugin.OnClick = ^(Placement *placement) {
-        for (int i = 0; i < _requests.count; i++) {
-            id<NeftaRequest> r = _requests[i];
-            if ([r._placementId isEqualToString: placement._id] && r._state == 2) {
-                [r OnClick];
-                return;
-            }
-        }
-    };
-    _plugin.OnReward = ^(Placement *placement) {
-        for (int i = 0; i < _requests.count; i++) {
-            id<NeftaRequest> r = _requests[i];
-            if ([r._placementId isEqualToString: placement._id] && r._state == 2) {
-                [r OnRewarded];
-                return;
-            }
-        }
-    };
-    _plugin.OnClose = ^(Placement *placement) {
-        for (int i = 0; i < _requests.count; i++) {
-            id<NeftaRequest> r = _requests[i];
-            if ([r._placementId isEqualToString: placement._id] && r._state == 2) {
-                [r OnClose];
-                [_requests removeObject: r];
-                return;
-            }
-        }
-    };
-    
-    _requests = [NSMutableArray array];
-    
-    [_plugin EnableAds: true];
 }
 
 - (void) loadBannerForAdConfiguration: (GADMediationBannerAdConfiguration *)adConfiguration
@@ -121,18 +55,14 @@ static NSMutableArray *_requests;
         completionHandler(nil, [NSError errorWithDomain: _errorDomain code: NeftaAdapterErrorCodeInvalidServerParameters userInfo: nil]);
         return;
     }
-    
-    _ErrorDomain = _errorDomain;
-    _Plugin = _plugin;
 
-    AdBannerNeftaRequest *request = [AdBannerNeftaRequest Init: self placementId: placementId callback: completionHandler];
-    [_requests addObject: request];
+    NeftaBanner *banner = [NeftaBanner Init: placementId listener: completionHandler errorDomain: _errorDomain];
 
     UIApplication *application = [UIApplication sharedApplication];
     UIWindow *keyWindow = application.keyWindow;
-    [_plugin PrepareRendererWithViewController: keyWindow.rootViewController];
+    [NeftaPlugin._instance PrepareRendererWithViewController: keyWindow.rootViewController];
     
-    [_plugin LoadWithId: placementId];
+    [banner Load];
 }
 
 - (void) loadInterstitialForAdConfiguration: (GADMediationInterstitialAdConfiguration *)adConfiguration
@@ -143,13 +73,9 @@ static NSMutableArray *_requests;
         return;
     }
     
-    _ErrorDomain = _errorDomain;
-    _Plugin = _plugin;
-    
-    InterstitialNeftaRequest *request = [InterstitialNeftaRequest Init: self placementId: placementId callback: completionHandler];
-    [_requests addObject: request];
-    
-    [_plugin LoadWithId: placementId];
+    NeftaInterstitial *interstitial = [NeftaInterstitial Init: placementId listener: completionHandler errorDomain: _errorDomain];
+    interstitial.extras = adConfiguration.extras;
+    [interstitial Load];
 }
 
 - (void) loadRewardedAdForAdConfiguration: (GADMediationRewardedAdConfiguration *)adConfiguration
@@ -160,17 +86,9 @@ static NSMutableArray *_requests;
         return;
     }
     
-    _ErrorDomain = _errorDomain;
-    _Plugin = _plugin;
-    
-    RewardedVideoNeftaRequest *request = [RewardedVideoNeftaRequest Init: self placementId: placementId callback: completionHandler];
-    NeftaExtras *extras = adConfiguration.extras;
-    if (extras != nil) {
-        request.muteAudio = extras.muteAudio;
-    }
-    [_requests addObject: request];
-    
-    [_plugin LoadWithId: placementId];
+    NeftaRewarded *rewaded = [NeftaRewarded Init: placementId listener: completionHandler errorDomain: _errorDomain];
+    rewaded.extras = adConfiguration.extras;
+    [rewaded Load];
 }
 
 - (void) loadNativeAdForAdConfiguration: (GADMediationNativeAdConfiguration *)adConfiguration
@@ -196,7 +114,6 @@ void NeftaPlugin_EnableLogging(bool enable) {
 
 void * NeftaPlugin_Init(const char *appId) {
     _plugin = [NeftaPlugin InitWithAppId: [NSString stringWithUTF8String: appId]];
-    [NeftaAdapter Init];
     return (__bridge_retained void *)_plugin;
 }
 

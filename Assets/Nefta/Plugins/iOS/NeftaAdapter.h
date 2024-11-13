@@ -10,6 +10,4 @@ typedef NS_ENUM(NSInteger, NeftaAdapterErrorCode) {
 };
 
 @interface NeftaAdapter : NSObject <GADMediationAdapter>
-@property NSString *ErrorDomain;
-@property NeftaPlugin *Plugin;
 @end
