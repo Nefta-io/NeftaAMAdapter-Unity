@@ -25,7 +25,7 @@ static NeftaPlugin *_plugin;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {2, 0, 0};
+    GADVersionNumber version = {2, 0, 1};
     return version;
 }
 

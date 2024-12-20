@@ -12,8 +12,6 @@ namespace Nefta
     public class Adapter
     {
 #if UNITY_EDITOR
-        private static bool _plugin;
-        private static bool _isLoggingEnabled;
 #elif UNITY_IOS
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_EnableLogging(bool enable);
@@ -33,31 +31,18 @@ namespace Nefta
 #endif
         private static StringBuilder _eventBuilder;
         
-        public static void Init()
+        public static void Init(string appId)
         {
             _eventBuilder = new StringBuilder(128);
-            var configuration = Resources.Load<NeftaConfiguration>(NeftaConfiguration.FileName);
-            if (configuration == null)
-            {
-                Debug.LogError("Missing Nefta Configuration; Does NeftaConfiguration asset (Window > Nefta > Select Nefta Configuration) exists in Resources?");
-            }
 #if UNITY_EDITOR
-            _plugin = true;
-            _isLoggingEnabled = configuration._isLoggingEnabled;
-            if (_isLoggingEnabled)
-            {
-                Debug.Log("NeftaPlugin Init");
-            }
-            UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeChange;
 #elif UNITY_IOS
-            NeftaPlugin_EnableLogging(configuration._isLoggingEnabled);
-            _plugin = NeftaPlugin_Init(configuration._iOSAppId);
+            _plugin = NeftaPlugin_Init(appId);
 #elif UNITY_ANDROID
             AndroidJavaClass unityClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             var unityActivity = unityClass.GetStatic<AndroidJavaObject>("currentActivity");
 
             AndroidJavaClass neftaPluginClass = new AndroidJavaClass("com.nefta.sdk.NeftaPlugin");
-            _plugin = neftaPluginClass.CallStatic<AndroidJavaObject>("Init", unityActivity, configuration._androidAppId);
+            _plugin = neftaPluginClass.CallStatic<AndroidJavaObject>("Init", unityActivity, appId);
 #endif
         }
 
@@ -165,15 +150,5 @@ namespace Nefta
             }
             return sb.ToString ();
         }
-        
-#if UNITY_EDITOR
-        private static void OnPlayModeChange(UnityEditor.PlayModeStateChange playMode)
-        {
-            if (playMode == UnityEditor.PlayModeStateChange.EnteredEditMode)
-            {
-                _plugin = false;
-            }
-        }
-#endif
     }
 }
