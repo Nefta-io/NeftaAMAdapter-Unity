@@ -99,6 +99,7 @@ namespace AdDemo
         
         private void SetStatus(string status)
         {
+            Debug.Log(status);
             lock (_state)
             {
                 _state._status = status;

@@ -123,6 +123,7 @@ namespace AdDemo
 
         private void SetStatus(string status)
         {
+            Debug.Log(status);
             lock (_state)
             {
                 _state._status = status;
@@ -132,6 +133,7 @@ namespace AdDemo
         
         private void SetStatus(string status, bool canShow)
         {
+            Debug.Log(status);
             lock (_state)
             {
                 _state._status = status;

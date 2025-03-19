@@ -1,12 +1,14 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Xml;
 using UnityEditor;
-using UnityEditor.Callbacks;
 using UnityEngine;
+#if UNITY_IOS
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor.Callbacks;
+#endif
 
 namespace Nefta.Editor
 {
@@ -29,6 +31,7 @@ namespace Nefta.Editor
             GetWindow(typeof(NeftaWindow), false, "Nefta");
         }
         
+#if UNITY_IOS
         [PostProcessBuild(0)]
         public static void NeftaPostProcessPlist(BuildTarget buildTarget, string path)
         {
@@ -70,6 +73,7 @@ namespace Nefta.Editor
                 plist.WriteToFile(plistPath);
             }
         }
+#endif
         
         public void OnEnable()
         {
@@ -137,7 +141,7 @@ namespace Nefta.Editor
             var assetPaths = new string[] { "Assets/Nefta" };
             
             TryGetPluginImporters();
-            TogglePlugins(true);
+            TogglePlugins(false);
             
             try
             {
@@ -226,20 +230,20 @@ namespace Nefta.Editor
         private void GetIosVersions()
         {
             var guids = AssetDatabase.FindAssets("NeftaAdapter");
-            if (guids.Length == 0)
+            string wrapperPath = null;
+            foreach (var guid in guids)
             {
-                _error = "NeftaAdapter not found in project";
-                return;
+                wrapperPath = AssetDatabase.GUIDToAssetPath(guid);
+                if (wrapperPath.EndsWith(".m"))
+                {
+                    break;
+                }
             }
-            if (guids.Length > 2)
+
+            if (wrapperPath == null)
             {
-                _error = "Multiple instances of NeftaAdapter found in project";
+                _error = "NeftaAdapter.m not found in project";
                 return;
-            }
-            var wrapperPath = AssetDatabase.GUIDToAssetPath(guids[0]);
-            if (wrapperPath.EndsWith(".h"))
-            {
-                wrapperPath = AssetDatabase.GUIDToAssetPath(guids[1]);
             }
             using StreamReader reader = new StreamReader(wrapperPath);
             string line;

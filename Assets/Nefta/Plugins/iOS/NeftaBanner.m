@@ -19,7 +19,10 @@
 }
 
 - (void)OnLoadWithAd:(NAd * _Nonnull)ad width:(NSInteger)width height:(NSInteger)height {
-    [_banner Show];
+    ((NBanner *)ad)._onRemove = ^(NBanner * _Nonnull banner) {
+        [banner Close];
+    };
+    (void)[_banner GracefulShow: nil];
     _adEventDelegate = _listener(self, nil);
 }
 
@@ -42,6 +45,5 @@
 - (nonnull UIView *)view {
     return [_banner GetView];
 }
-
 
 @end

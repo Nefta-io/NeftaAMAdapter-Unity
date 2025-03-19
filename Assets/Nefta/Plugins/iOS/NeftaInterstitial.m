@@ -25,11 +25,10 @@
         return;
     }
 
-    [NeftaPlugin._instance PrepareRendererWithViewController: viewController];
     if (_extras != nil && _extras.muteAudio) {
         [_interstitial Mute: true];
     }
-    [_interstitial Show];
+    [_interstitial Show: viewController];
 }
 
 - (void)OnLoadFailWithAd:(NAd * _Nonnull)ad error:(NError * _Nonnull)error {

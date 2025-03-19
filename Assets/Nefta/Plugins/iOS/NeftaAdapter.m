@@ -9,6 +9,27 @@
     return [NeftaExtras class];
 }
 
++(void) OnExternalMediationRequestLoad:(AdType)adType requestedFloorPrice:(double)requestedFloorPrice calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString *)adUnitId {
+    [NeftaPlugin OnExternalMediationRequest: @"am" adType: adType requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: -1 precision: @"" status: 1];
+}
+
++(void) OnExternalMediationRequestFail:(AdType)adType requestedFloorPrice:(double)requestedFloorPrice calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString *)adUnitId error:(NSError *)error {
+    int status = 0;
+    if (error != nil && (error.code == GADErrorNoFill || error.code == GADErrorMediationNoFill)) {
+        status = 2;
+    }
+    [NeftaPlugin OnExternalMediationRequest: @"am" adType: adType requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: -1 precision: nil status: status];
+}
+
++(void) OnExternalMediationImpression:(GADAdValue*)adValue {
+    NSMutableDictionary *data = [NSMutableDictionary dictionary];
+    [data setObject: adValue.value forKey: @"value"];
+    [data setObject: @(adValue.precision) forKey: @"precision"];
+    [data setObject: adValue.currencyCode forKey: @"currency_code"];
+
+    [NeftaPlugin OnExternalMediationImpression: @"am" data: data];
+}
+
 NSString *_errorDomain = @"NeftaAMAdapter";
 NSString *_idKey = @"parameter";
 
@@ -25,7 +46,7 @@ static NeftaPlugin *_plugin;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {2, 0, 1};
+    GADVersionNumber version = {2, 2, 0};
     return version;
 }
 
@@ -42,7 +63,6 @@ static NeftaPlugin *_plugin;
             completionHandler([NSError errorWithDomain: _errorDomain code: NeftaAdapterErrorCodeInvalidServerParameters userInfo: nil]);
             return;
         }
-        [_plugin EnableAds: true];
         
         completionHandler(nil);
     });
@@ -57,11 +77,6 @@ static NeftaPlugin *_plugin;
     }
 
     NeftaBanner *banner = [NeftaBanner Init: placementId listener: completionHandler errorDomain: _errorDomain];
-
-    UIApplication *application = [UIApplication sharedApplication];
-    UIWindow *keyWindow = application.keyWindow;
-    [NeftaPlugin._instance PrepareRendererWithViewController: keyWindow.rootViewController];
-    
     [banner Load];
 }
 
@@ -100,10 +115,14 @@ static NeftaPlugin *_plugin;
 #ifdef __cplusplus
 extern "C" {
 #endif
+    typedef void (*OnBehaviourInsight)(const char *behaviourInsight);
+    
     void EnableLogging(bool enable);
-    void * NeftaPlugin_Init(const char *appId);
-    void NeftaPlugin_Record(void *instance, int type, int category, int subCategory, const char *name, long value, const char *customPayload);
-    const char * NeftaPlugin_GetNuid(void *instance, bool present);
+    void NeftaPlugin_Init(const char *appId, OnBehaviourInsight onBehaviourInsight);
+    void NeftaPlugin_Record(int type, int category, int subCategory, const char *name, long value, const char *customPayload);
+    const char * NeftaPlugin_GetNuid(bool present);
+    void NeftaPlugin_SetContentRating(const char *rating);
+    void NeftaPlugin_GetBehaviourInsight(const char *insights);
 #ifdef __cplusplus
 }
 #endif
@@ -112,18 +131,31 @@ void NeftaPlugin_EnableLogging(bool enable) {
     [NeftaPlugin EnableLogging: enable];
 }
 
-void * NeftaPlugin_Init(const char *appId) {
+void NeftaPlugin_Init(const char *appId, OnBehaviourInsight onBehaviourInsight) {
     _plugin = [NeftaPlugin InitWithAppId: [NSString stringWithUTF8String: appId]];
-    return (__bridge_retained void *)_plugin;
+    _plugin.OnBehaviourInsightAsString = ^void(NSString * _Nonnull behaviourInsight) {
+        const char *cBI = [behaviourInsight UTF8String];
+        onBehaviourInsight(cBI);
+    };
 }
 
-void NeftaPlugin_Record(void *instance, int type, int category, int subCategory, const char *name, long value, const char *customPayload) {
-    [_plugin RecordWithType: type category: category subCategory: subCategory name: [NSString stringWithUTF8String: name] value: value customPayload: [NSString stringWithUTF8String: customPayload]];
+void NeftaPlugin_Record(int type, int category, int subCategory, const char *name, long value, const char *customPayload) {
+    NSString *n = name ? [NSString stringWithUTF8String: name] : nil;
+    NSString *cp = customPayload ? [NSString stringWithUTF8String: customPayload] : nil;
+    [_plugin RecordWithType: type category: category subCategory: subCategory name: n value: value customPayload: cp];
 }
 
-const char * NeftaPlugin_GetNuid(void *instance, bool present) {
+const char * NeftaPlugin_GetNuid(bool present) {
     const char *string = [[_plugin GetNuidWithPresent: present] UTF8String];
     char *returnString = (char *)malloc(strlen(string) + 1);
     strcpy(returnString, string);
     return returnString;
+}
+
+void NeftaPlugin_SetContentRating(const char *rating) {
+    [_plugin SetContentRatingWithRating: [NSString stringWithUTF8String: rating]];
+}
+
+void NeftaPlugin_GetBehaviourInsight(const char *insights) {
+    [_plugin GetBehaviourInsightWithString: [NSString stringWithUTF8String: insights]];
 }
