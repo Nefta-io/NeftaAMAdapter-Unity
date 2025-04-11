@@ -154,7 +154,7 @@ namespace Nefta.Editor
             }
         }
         
-        private static void TryGetPluginImporters()
+        public static void TryGetPluginImporters()
         {
             var guid = AssetDatabase.FindAssets("NeftaAMAdapter-debug")[0];
             var path = AssetDatabase.GUIDToAssetPath(guid);
@@ -165,7 +165,7 @@ namespace Nefta.Editor
             _releasePluginImporter = (PluginImporter) AssetImporter.GetAtPath(path);
         }
 
-        private static void TogglePlugins(bool enable)
+        public static void TogglePlugins(bool enable)
         {
             _debugPluginImporter.SetCompatibleWithPlatform(BuildTarget.Android, enable);
             _debugPluginImporter.SaveAndReimport();

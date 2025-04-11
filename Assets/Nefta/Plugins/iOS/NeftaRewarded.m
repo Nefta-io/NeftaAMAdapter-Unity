@@ -1,4 +1,5 @@
 #import "NeftaRewarded.h"
+#import "NeftaAdapter.h"
 
 @implementation NeftaRewarded
 
@@ -17,10 +18,10 @@
 - (void)presentFromViewController:(nonnull UIViewController *)viewController {
     int status = (int) [_rewarded CanShow];
     if (status != NAd.Ready) {
-        NSError *showError = [NSError errorWithDomain: @"NeftaAMAdapter"
+        NSError *showError = [NSError errorWithDomain: _errorDomain
                                                  code: status
                                              userInfo: @{NSLocalizedDescriptionKey : @"Ad not ready."}];
-        [_adEventDelegate didFailToPresentWithError:showError];
+        [_adEventDelegate didFailToPresentWithError: showError];
         return;
     }
 
@@ -31,7 +32,7 @@
 }
 
 - (void)OnLoadFailWithAd:(NAd * _Nonnull)ad error:(NError * _Nonnull)error {
-    _listener(nil, [NSError errorWithDomain: error._message code: error._code userInfo: nil]);
+    _listener(nil, [NeftaAdapter NLoadToAdapterError: error]);
 }
 
 - (void)OnLoadWithAd:(NAd * _Nonnull)ad width:(NSInteger)width height:(NSInteger)height {
@@ -39,8 +40,10 @@
 }
 
 - (void)OnShowFailWithAd:(NAd * _Nonnull)ad error:(NError * _Nonnull)error {
-    NSDictionary *userInfo = @ { NSLocalizedDescriptionKey: error._message };
-    [_adEventDelegate didFailToPresentWithError: [NSError errorWithDomain: @"NeftaAMAdapter" code: error._code userInfo: userInfo]];
+    NSError *showError = [NSError errorWithDomain: _errorDomain
+                                             code: 0
+                                         userInfo: @{NSLocalizedDescriptionKey : @"Show failed."}];
+    [_adEventDelegate didFailToPresentWithError: showError];
 }
 
 - (void)OnShowWithAd:(NAd * _Nonnull)ad {

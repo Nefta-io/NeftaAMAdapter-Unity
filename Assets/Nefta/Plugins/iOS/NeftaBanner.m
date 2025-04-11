@@ -1,4 +1,5 @@
 #import "NeftaBanner.h"
+#import "NeftaAdapter.h"
 
 @implementation NeftaBanner
 + (instancetype)Init:(NSString *)id listener:(nonnull GADMediationBannerLoadCompletionHandler)listener errorDomain:(NSString *)errorDomain {
@@ -15,7 +16,7 @@
 }
 
 - (void)OnLoadFailWithAd:(NAd * _Nonnull)ad error:(NError * _Nonnull)error {
-    _listener(nil, [NSError errorWithDomain: error._message code: error._code userInfo: nil]);
+    _listener(nil, [NeftaAdapter NLoadToAdapterError: error]);
 }
 
 - (void)OnLoadWithAd:(NAd * _Nonnull)ad width:(NSInteger)width height:(NSInteger)height {
@@ -27,8 +28,10 @@
 }
 
 - (void)OnShowFailWithAd:(NAd * _Nonnull)ad error:(NError * _Nonnull)error {
-    NSDictionary *userInfo = @ { NSLocalizedDescriptionKey: error._message };
-    [_adEventDelegate didFailToPresentWithError: [NSError errorWithDomain: _errorDomain code: error._code userInfo: userInfo]];
+    NSError *showError = [NSError errorWithDomain: _errorDomain
+                                             code: 0
+                                         userInfo: @{NSLocalizedDescriptionKey : @"Show failed."}];
+    [_adEventDelegate didFailToPresentWithError: showError];
 }
 
 - (void)OnShowWithAd:(NAd * _Nonnull)ad {

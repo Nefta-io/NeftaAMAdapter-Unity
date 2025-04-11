@@ -6,11 +6,23 @@
 @implementation NeftaAdapter
 
 + (Class<GADAdNetworkExtras>)networkExtrasClass {
-    return [NeftaExtras class];
+    return [GADNeftaExtras class];
+}
+
++(void) OnExternalMediationRequestLoad:(AdType)adType recommendedAdUnitId:(NSString *)recommendedAdUnitId calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString *)adUnitId {
+    [NeftaPlugin OnExternalMediationRequest: @"am" adType: adType recommendedAdUnitId: recommendedAdUnitId requestedFloorPrice: -1 calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: -1 precision: @"" status: 1];
+}
+
++(void) OnExternalMediationRequestFail:(AdType)adType recommendedAdUnitId:(NSString *)recommendedAdUnitId calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString *)adUnitId error:(NSError *)error {
+    int status = 0;
+    if (error != nil && (error.code == GADErrorNoFill || error.code == GADErrorMediationNoFill)) {
+        status = 2;
+    }
+    [NeftaPlugin OnExternalMediationRequest: @"am" adType: adType recommendedAdUnitId: recommendedAdUnitId requestedFloorPrice: -1 calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: -1 precision: nil status: status];
 }
 
 +(void) OnExternalMediationRequestLoad:(AdType)adType requestedFloorPrice:(double)requestedFloorPrice calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString *)adUnitId {
-    [NeftaPlugin OnExternalMediationRequest: @"am" adType: adType requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: -1 precision: @"" status: 1];
+    [NeftaPlugin OnExternalMediationRequest: @"am" adType: adType recommendedAdUnitId: nil requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: -1 precision: @"" status: 1];
 }
 
 +(void) OnExternalMediationRequestFail:(AdType)adType requestedFloorPrice:(double)requestedFloorPrice calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString *)adUnitId error:(NSError *)error {
@@ -18,7 +30,7 @@
     if (error != nil && (error.code == GADErrorNoFill || error.code == GADErrorMediationNoFill)) {
         status = 2;
     }
-    [NeftaPlugin OnExternalMediationRequest: @"am" adType: adType requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: -1 precision: nil status: status];
+    [NeftaPlugin OnExternalMediationRequest: @"am" adType: adType recommendedAdUnitId: nil requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: -1 precision: nil status: status];
 }
 
 +(void) OnExternalMediationImpression:(GADAdValue*)adValue {
@@ -46,7 +58,7 @@ static NeftaPlugin *_plugin;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {2, 2, 0};
+    GADVersionNumber version = {2, 2, 1};
     return version;
 }
 
@@ -108,6 +120,23 @@ static NeftaPlugin *_plugin;
 
 - (void) loadNativeAdForAdConfiguration: (GADMediationNativeAdConfiguration *)adConfiguration
                      completionHandler: (GADMediationNativeLoadCompletionHandler)completionHandler {
+}
+
++ (NSError *) NLoadToAdapterError: (NError *)error {
+    GADErrorCode code = GADErrorInternalError;
+    if (error._code == CodeRequest) {
+        code = GADErrorInvalidRequest;
+    } else if (error._code == CodeNetwork) {
+        code =  GADErrorNetworkError;
+    } else if (error._code == CodeNoFill) {
+        code =  GADErrorNoFill;
+    } else if (error._code == CodeTimeout) {
+        code =  GADErrorTimeout;
+    } else if (error._code == CodeResponse) {
+        code =  GADErrorReceivedInvalidResponse;
+    }
+    NSDictionary *userInfo = @ { NSLocalizedDescriptionKey: error._message };
+    return [NSError errorWithDomain: _errorDomain code: error._code userInfo: userInfo];
 }
 
 @end
