@@ -36,7 +36,7 @@ namespace AdDemo
             foreach (var insight in behaviourInsight)
             {
                 var insightValue = insight.Value;
-                Debug.Log($"BehaviourInsight {insight.Key} status:{insightValue._status} i:{insightValue._int} f:{insightValue._float} s:{insightValue._string}");
+                Debug.Log($"BehaviourInsight {insight.Key} i:{insightValue._int} f:{insightValue._float} s:{insightValue._string}");
             }
         }
     }

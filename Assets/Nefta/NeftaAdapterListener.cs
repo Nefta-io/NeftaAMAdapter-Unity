@@ -11,9 +11,9 @@ namespace Nefta
         {
         }
 
-        public void IOnBehaviourInsight(string behaviourInsight)
+        public void IOnBehaviourInsight(int id, string behaviourInsight)
         {
-            Adapter.IOnBehaviourInsight(behaviourInsight);
+            Adapter.IOnBehaviourInsight(id, behaviourInsight);
         }
     }
 }

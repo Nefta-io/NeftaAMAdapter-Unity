@@ -3,7 +3,7 @@ namespace Nefta
 {
     public interface IAdapterListener
     {
-        void IOnBehaviourInsight(string playerScore);
+        void IOnBehaviourInsight(int id, string playerScore);
     }
 }
 #endif
