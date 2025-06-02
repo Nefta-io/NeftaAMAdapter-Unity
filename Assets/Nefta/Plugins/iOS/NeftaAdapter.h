@@ -15,11 +15,11 @@ typedef NS_ENUM(NSInteger, AdType) {
     AdTypeInterstitial = 2,
     AdTypeRewarded = 3
 };
-+ (void)OnExternalMediationRequestLoad:(AdType)adType recommendedAdUnitId:(NSString * _Nullable)recommendedAdUnitId calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString * _Nonnull)adUnitId;
++ (void)OnExternalMediationRequestLoad:(AdType)adType recommendedAdUnitId:(NSString * _Nullable)recommendedAdUnitId calculatedFloorPrice:(double)calculatedFloorPrice banner:(GADBannerView * _Nonnull)banner;
++ (void)OnExternalMediationRequestLoad:(AdType)adType recommendedAdUnitId:(NSString * _Nullable)recommendedAdUnitId calculatedFloorPrice:(double)calculatedFloorPrice interstitial:(GADInterstitialAd * _Nonnull)interstitial;
++ (void)OnExternalMediationRequestLoad:(AdType)adType recommendedAdUnitId:(NSString * _Nullable)recommendedAdUnitId calculatedFloorPrice:(double)calculatedFloorPrice rewarded:(GADRewardedAd * _Nonnull)rewarded;
 + (void)OnExternalMediationRequestFail:(AdType)adType recommendedAdUnitId:(NSString * _Nullable)recommendedAdUnitId calculatedFloorPrice:(double)calculatedFloorPrice  adUnitId:(NSString * _Nonnull)adUnitId error:(NSError * _Nullable)error;
-+ (void)OnExternalMediationRequestLoad:(AdType)adType requestedFloorPrice:(double)requestedFloorPrice calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString * _Nonnull)adUnitId;
-+ (void)OnExternalMediationRequestFail:(AdType)adType requestedFloorPrice:(double)requestedFloorPrice calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString * _Nonnull)adUnitId error:(NSError * _Nullable)error;
-+ (void)OnExternalMediationImpression:(GADAdValue* _Nonnull)adValue;
++ (void)OnExternalMediationImpression:(AdType)adType adUnitId:(NSString * _Nonnull)adUnitId adValue:(GADAdValue* _Nonnull)adValue;
 
 + (NSError *_Nonnull) NLoadToAdapterError:(NError *_Nonnull)error;
 @end

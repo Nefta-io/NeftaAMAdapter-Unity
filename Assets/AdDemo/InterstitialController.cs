@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using GoogleMobileAds.Api;
 using Nefta;
 using Nefta.Events;
@@ -16,19 +18,104 @@ namespace AdDemo
             public bool _isDirty;
         }
         
-#if UNITY_ANDROID
-        private const string _adUnitId = "ca-app-pub-1193175835908241/9381753032";
-#elif UNITY_IPHONE
-        private const string _adUnitId = "ca-app-pub-1193175835908241/4419202401";
+#if UNITY_IPHONE
+        private const string DefaultAdUnitId = "ca-app-pub-1193175835908241/4419202401";
+#else
+        private const string DefaultAdUnitId = "ca-app-pub-1193175835908241/9381753032";
 #endif
+        private const string AdUnitIdInsightName = "recommended_interstitial_ad_unit_id";
+        private const string FloorPriceInsightName = "calculated_user_floor_price_interstitial";
         
         [SerializeField] private Text _title;
         [SerializeField] private Button _load;
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
         
+        private string _recommendedAdUnitId;
+        private double _calculatedBidFloor;
+        private Coroutine _fallbackCoroutine;
+        private string _loadedAdUnitId;
         private InterstitialAd _interstitialAd;
+        
         private State _state = new State();
+        
+        private void GetInsightsAndLoad()
+        {
+            Adapter.GetBehaviourInsight(new string[] { AdUnitIdInsightName, FloorPriceInsightName }, OnBehaviourInsight);
+            
+            _fallbackCoroutine = StartCoroutine(LoadFallback());
+        }
+        
+        private void OnBehaviourInsight(Dictionary<string, Insight> insights)
+        {
+            _recommendedAdUnitId = null;
+            _calculatedBidFloor = 0;
+            if (insights.TryGetValue(AdUnitIdInsightName, out var insight))
+            {
+                _recommendedAdUnitId = insight._string;
+            }
+            if (insights.TryGetValue(FloorPriceInsightName, out insight))
+            {
+                _calculatedBidFloor = insight._float;
+            }
+
+            Debug.Log($"OnBehaviourInsight for Interstitial recommended AdUnit: {_recommendedAdUnitId}, calculated bid floor: {_calculatedBidFloor}");
+            
+            if (_fallbackCoroutine != null)
+            {
+                Load();
+            }
+        }
+
+        private void Load()
+        {
+            if (_fallbackCoroutine != null)
+            {
+                StopCoroutine(_fallbackCoroutine);
+                _fallbackCoroutine = null;
+            }
+            
+            _loadedAdUnitId = DefaultAdUnitId;
+            if (!string.IsNullOrEmpty(_recommendedAdUnitId))
+            {
+                _loadedAdUnitId = _recommendedAdUnitId;
+            }
+            
+            var adRequest = new AdRequest();
+            InterstitialAd.Load(_loadedAdUnitId, adRequest, (InterstitialAd ad, LoadAdError error) =>
+            {
+                if (error != null)
+                {
+                    Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Interstitial, _recommendedAdUnitId, _calculatedBidFloor, _loadedAdUnitId, error);
+                    
+                    SetStatus("Interstitial ad failed to load an ad with error : " + error);
+                    return;
+                }
+                if (ad == null)
+                {
+                    SetStatus("Unexpected error: Interstitial load event fired with null ad and null error.");
+                    return;
+                }
+                
+                Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Interstitial, _recommendedAdUnitId, _calculatedBidFloor, _loadedAdUnitId, ad);
+                
+                SetStatus("Interstitial ad loaded with response : " + ad.GetResponseInfo(), true);
+                _interstitialAd = ad;
+                _interstitialAd.OnAdPaid += OnAdPaid;
+                _interstitialAd.OnAdImpressionRecorded += OnAdImpressionRecorded;
+                _interstitialAd.OnAdClicked += OnAdClicked;
+                _interstitialAd.OnAdFullScreenContentOpened += OnAdFullScreenContentOpened;
+                _interstitialAd.OnAdFullScreenContentClosed += OnAdFullScreenContentClosed;
+                _interstitialAd.OnAdFullScreenContentFailed += OnAdFullScreenContentFailed;
+            });
+        }
+        
+        private void OnAdPaid(AdValue adValue)
+        {
+            Adapter.OnExternalMediationImpression(Adapter.AdType.Interstitial, _loadedAdUnitId, adValue);
+
+            SetStatus($"OnAdPaid {adValue.Value}");
+        }
         
         public void Init()
         {
@@ -40,36 +127,9 @@ namespace AdDemo
 
         private void OnLoadClick()
         {
-            var category = (ResourceCategory) UnityEngine.Random.Range(0, 9);
-            var method = (ReceiveMethod) UnityEngine.Random.Range(0, 8);
-            var value = UnityEngine.Random.Range(0, 101);
-            Adapter.Record(new ReceiveEvent(category) { _method = method, _name = $"receive_{category} {method} {value}", _value = value });
+            GetInsightsAndLoad();
             
-            SetStatus("Loading interstitial...");
-            var adRequest = new AdRequest();
-            
-            InterstitialAd.Load(_adUnitId, adRequest, (InterstitialAd ad, LoadAdError error) =>
-            {
-                if (error != null)
-                {
-                    SetStatus("Interstitial ad failed to load an ad with error : " + error);
-                    return;
-                }
-                if (ad == null)
-                {
-                    SetStatus("Unexpected error: Interstitial load event fired with null ad and null error.");
-                    return;
-                }
-                
-                SetStatus("Interstitial ad loaded with response : " + ad.GetResponseInfo(), true);
-                _interstitialAd = ad;
-                _interstitialAd.OnAdPaid += OnAdPaid;
-                _interstitialAd.OnAdImpressionRecorded += OnAdImpressionRecorded;
-                _interstitialAd.OnAdClicked += OnAdClicked;
-                _interstitialAd.OnAdFullScreenContentOpened += OnAdFullScreenContentOpened;
-                _interstitialAd.OnAdFullScreenContentClosed += OnAdFullScreenContentClosed;
-                _interstitialAd.OnAdFullScreenContentFailed += OnAdFullScreenContentFailed;
-            });
+            AddDemoGameEventExample();
         }
         
         private void OnShowClick()
@@ -83,11 +143,17 @@ namespace AdDemo
             {
                 SetStatus("Interstitial not ready", false);
             }
-        }
 
-        private void OnAdPaid(AdValue advalue)
+            _show.interactable = false;
+        }
+        
+        private IEnumerator LoadFallback()
         {
-            SetStatus($"OnAdPaid {advalue}");
+            yield return new WaitForSeconds(5f);
+
+            _recommendedAdUnitId = null;
+            _calculatedBidFloor = 0;
+            Load();
         }
 
         private void OnAdImpressionRecorded()
@@ -153,6 +219,15 @@ namespace AdDemo
                     _state._isDirty = false;
                 }
             }
+        }
+
+        private void AddDemoGameEventExample()
+        {
+            var category = (ResourceCategory) UnityEngine.Random.Range(0, 9);
+            var method = (ReceiveMethod) UnityEngine.Random.Range(0, 8);
+            var value = UnityEngine.Random.Range(0, 101);
+            Adapter.Record(new ReceiveEvent(category) { _method = method, _name = $"receive_{category} {method} {value}", _value = value });
+
         }
     }
 }

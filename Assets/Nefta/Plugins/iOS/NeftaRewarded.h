@@ -10,4 +10,6 @@
 @property (nonatomic, weak) id<GADMediationRewardedAdEventDelegate> adEventDelegate;
 + (instancetype _Nonnull)Init:(NSString *_Nonnull)id listener:(nonnull GADMediationRewardedLoadCompletionHandler)listener errorDomain:(NSString *_Nonnull)errorDomain;
 - (void) Load;
++ (NSString * _Nullable) GetLastAuctionId;
++ (NSString * _Nullable) GetLastCreativeId;
 @end

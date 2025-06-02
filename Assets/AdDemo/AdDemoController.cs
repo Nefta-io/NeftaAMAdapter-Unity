@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Nefta;
 using UnityEngine;
 
@@ -21,23 +20,42 @@ namespace AdDemo
         {
             Adapter.EnableLogging(true);
             Adapter.Init(_neftaAppId);
+            var debugParams = GetDebugParameters();
+            if (debugParams != null)
+            {
+                Adapter.SetOverride(debugParams[0]);
+            }
             
-            Adapter.BehaviourInsightCallback = OnBehaviourInsight;
-            Adapter.GetBehaviourInsight(new string[] { "p_churn_14d"});
             Adapter.SetContentRating(Adapter.ContentRating.General);
-
+            
             _banner.Init();
             _interstitial.Init();
             _rewarded.Init();
         }
         
-        private void OnBehaviourInsight(Dictionary<string, Insight> behaviourInsight)
+        private string[] GetDebugParameters()
         {
-            foreach (var insight in behaviourInsight)
+            string root = null;
+#if UNITY_EDITOR
+            //root = "http://192.168.0.216:8080";
+#elif UNITY_IOS
+            string[] args = System.Environment.GetCommandLineArgs();
+            if (args.Length > 1)
             {
-                var insightValue = insight.Value;
-                Debug.Log($"BehaviourInsight {insight.Key} i:{insightValue._int} f:{insightValue._float} s:{insightValue._string}");
+                root = args[1];
             }
+#elif UNITY_ANDROID
+            AndroidJavaClass unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+            AndroidJavaObject currentActivity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
+            AndroidJavaObject intent = currentActivity.Call<AndroidJavaObject>("getIntent");
+            root = intent.Call<string>("getStringExtra", "override");
+#endif
+            if (!string.IsNullOrEmpty(root))
+            {
+                return new[]{ root };
+            }
+
+            return null;
         }
     }
 }

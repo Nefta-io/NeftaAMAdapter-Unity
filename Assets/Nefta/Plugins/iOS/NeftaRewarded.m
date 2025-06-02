@@ -1,6 +1,9 @@
 #import "NeftaRewarded.h"
 #import "NeftaAdapter.h"
 
+static NSString* _lastCreativeId;
+static NSString* _lastAuctionId;
+
 @implementation NeftaRewarded
 
 + (instancetype)Init:(NSString *)id listener:(nonnull GADMediationRewardedLoadCompletionHandler)listener errorDomain:(NSString *_Nonnull)errorDomain {
@@ -47,6 +50,8 @@
 }
 
 - (void)OnShowWithAd:(NAd * _Nonnull)ad {
+    _lastAuctionId = ad._bid._auctionId;
+    _lastCreativeId = ad._bid._creativeId;
     [_adEventDelegate willPresentFullScreenView];
 }
 
@@ -71,4 +76,10 @@
     
 }
 
++ (NSString*) GetLastAuctionId {
+    return _lastAuctionId;
+}
++ (NSString*) GetLastCreativeId {
+    return _lastCreativeId;
+}
 @end

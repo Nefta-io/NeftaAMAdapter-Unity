@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using Nefta.Editor;
 #elif UNITY_IOS
-using System;
 using System.Runtime.InteropServices;
 using AOT;
 #endif
@@ -10,6 +9,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Threading;
+using GoogleMobileAds.Api;
 using Nefta.Events;
 using UnityEngine;
 
@@ -18,7 +18,16 @@ namespace Nefta
     public class Adapter
     {
         public delegate void OnBehaviourInsightCallback(Dictionary<string, Insight> insights);
-        
+
+        public enum AdType
+        {
+            Other = 0,
+            Banner = 1,
+            Interstitial = 2,
+            Rewarded = 3
+        }
+
+
         public enum ContentRating
         {
             Unspecified = 0,
@@ -27,7 +36,7 @@ namespace Nefta
             Teen = 3,
             MatureAudience = 4
         }
-        
+
         private class InsightRequest
         {
             public int _id;
@@ -43,7 +52,7 @@ namespace Nefta
                 _callback = callback;
             }
         }
-        
+
 #if UNITY_EDITOR
         private static NeftaPlugin _plugin;
 #elif UNITY_IOS
@@ -64,6 +73,12 @@ namespace Nefta
         private static extern void NeftaPlugin_Record(int type, int category, int subCategory, string nameValue, long value, string customPayload);
 
         [DllImport ("__Internal")]
+        private static extern void NeftaPlugin_OnExternalMediationRequest(string mediationProvider, int adType, string recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus, string networkStatus);
+
+        [DllImport ("__Internal")]
+        private static extern void NeftaAdapter_OnExternalMediationImpressionAsString(int adType, string network, string data);
+
+        [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(bool present);
 
         [DllImport ("__Internal")]
@@ -71,6 +86,9 @@ namespace Nefta
         
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_GetBehaviourInsight(int requestId, string insights);
+        
+        [DllImport ("__Internal")]
+        private static extern void NeftaPlugin_SetOverride(string root);
 #elif UNITY_ANDROID
         private static AndroidJavaClass _neftaPluginClass;
         private static AndroidJavaClass NeftaPluginClass {
@@ -84,13 +102,15 @@ namespace Nefta
             }
         }
         private static AndroidJavaObject _plugin;
+        private static AndroidJavaClass _adapter;
 #endif
-        
+
         private static List<InsightRequest> _insightRequests;
         private static int _insightId;
-        
+        private static Dictionary<string, ResponseInfo> _responses = new Dictionary<string, ResponseInfo>();
+
         public static OnBehaviourInsightCallback BehaviourInsightCallback;
-        
+
         public static void EnableLogging(bool enable)
         {
 #if UNITY_EDITOR
@@ -101,7 +121,7 @@ namespace Nefta
             NeftaPluginClass.CallStatic("EnableLogging", enable);
 #endif
         }
-        
+
         public static void Init(string appId)
         {
 #if UNITY_EDITOR
@@ -130,15 +150,17 @@ namespace Nefta
             {
                 name = JavaScriptStringEncode(gameEvent._name);
             }
+
             var value = gameEvent._value;
             var customPayload = gameEvent._customString;
             if (customPayload != null)
             {
                 customPayload = JavaScriptStringEncode(gameEvent._customString);
             }
+
             Record(type, category, subCategory, name, value, customPayload);
         }
-        
+
         internal static void Record(int type, int category, int subCategory, string name, long value, string customPayload)
         {
 #if UNITY_EDITOR
@@ -149,7 +171,185 @@ namespace Nefta
             _plugin.Call("Record", type, category, subCategory, name, value, customPayload);
 #endif
         }
+
+        /// <summary>
+        /// Should be called when MAX loads any ad (MaxSdkCallbacks.[AdType].OnAdLoadedEvent
+        /// </summary>
+        /// <param name="adType">Ad format of the loaded ad</param>
+        /// <param name="recommendedAdUnitId">Recommended adUnitId, retrieved from "recommended_[AdType]_ad_unit_id"</param>
+        /// <param name="calculatedFloorPrice">Predicted bid floor, retrieved from "calculated_user_floor_price_[AdType]"</param>
+        /// <param name="adUnitId">Google AdMob AdUnit id that was request to load</param>
+        /// <param name="banner">Google AdMob BannerView instance</param>
+        public static void OnExternalMediationRequestLoaded(AdType adType, string recommendedAdUnitId, double calculatedFloorPrice, string adUnitId, BannerView banner)
+        {
+            OnAdLoad(adType, recommendedAdUnitId, calculatedFloorPrice, adUnitId, banner.GetResponseInfo());
+        }
         
+        /// <summary>
+        /// Should be called when MAX loads any ad (MaxSdkCallbacks.[AdType].OnAdLoadedEvent
+        /// </summary>
+        /// <param name="adType">Ad format of the loaded ad</param>
+        /// <param name="recommendedAdUnitId">Recommended adUnitId, retrieved from "recommended_[AdType]_ad_unit_id"</param>
+        /// <param name="calculatedFloorPrice">Predicted bid floor, retrieved from "calculated_user_floor_price_[AdType]"</param>
+        /// <param name="adUnitId">Google AdMob AdUnit id that was request to load</param>
+        /// <param name="interstitial">Google AdMob InterstitialAd instance</param>
+        public static void OnExternalMediationRequestLoaded(AdType adType, string recommendedAdUnitId, double calculatedFloorPrice, string adUnitId, InterstitialAd interstitial)
+        {
+            OnAdLoad(adType, recommendedAdUnitId, calculatedFloorPrice, adUnitId, interstitial.GetResponseInfo());
+        }
+        
+        /// <summary>
+        /// Should be called when MAX loads any ad (MaxSdkCallbacks.[AdType].OnAdLoadedEvent
+        /// </summary>
+        /// <param name="adType">Ad format of the loaded ad</param>
+        /// <param name="recommendedAdUnitId">Recommended adUnitId, retrieved from "recommended_[AdType]_ad_unit_id"</param>
+        /// <param name="calculatedFloorPrice">Predicted bid floor, retrieved from "calculated_user_floor_price_[AdType]"</param>
+        /// <param name="adUnitId">Google AdMob AdUnit id that was request to load</param>
+        /// <param name="rewarded">Google AdMob RewardedAd instance</param>
+        public static void OnExternalMediationRequestLoaded(AdType adType, string recommendedAdUnitId, double calculatedFloorPrice, string adUnitId, RewardedAd rewarded)
+        {
+            OnAdLoad(adType, recommendedAdUnitId, calculatedFloorPrice, adUnitId, rewarded.GetResponseInfo());
+        }
+
+        private static void OnAdLoad(AdType adType, String recommendedAdUnitId, double calculatedFloorPrice, string adUnitId, ResponseInfo responseInfo)
+        {
+            _responses[adUnitId] = responseInfo;
+            OnExternalMediationRequest((int)adType, recommendedAdUnitId, -1, calculatedFloorPrice, adUnitId, -1, null, 1, null, null);
+        }
+
+        /// <summary>
+        /// Should be called when MAX loads any ad (MaxSdkCallbacks.[AdType].OnAdLoadedEvent
+        /// </summary>
+        /// <param name="adType">Ad format of the loaded ad</param>
+        /// <param name="recommendedAdUnitId">Recommended adUnitId, retrieved from "recommended_[AdType]_ad_unit_id"</param>
+        /// <param name="calculatedFloorPrice">Predicted bid floor, retrieved from "calculated_user_floor_price_[AdType]"</param>
+        /// <param name="adUnitId">Google AdMob AdUnit id that was request to load</param>
+        /// <param name="error">Load fail reason</param>
+        public static void OnExternalMediationRequestFailed(AdType adType, string recommendedAdUnitId, double calculatedFloorPrice, string adUnitId, LoadAdError error)
+        {
+            var errorCode = error.GetCode();
+            var status = 0;
+#if UNITY_IOS
+            if (errorCode == 1)
+#else
+            if (errorCode == 3)
+#endif
+            {
+                status = 2;
+            }
+
+            var providerStatus = errorCode.ToString(CultureInfo.CurrentCulture);
+            String networkStatus = null;
+            try
+            {
+                var responseInfo = error.GetResponseInfo();
+                if (responseInfo != null)
+                {
+                    var adapterResponse = responseInfo.GetLoadedAdapterResponseInfo();
+                    if (adapterResponse != null)
+                    {
+                        var adapterError = adapterResponse.AdError;
+                        if (adapterError != null)
+                        {
+                            networkStatus = adapterError.GetCode().ToString(CultureInfo.InvariantCulture);
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                // ignored
+            }
+
+            OnExternalMediationRequest((int)adType, recommendedAdUnitId, -1, calculatedFloorPrice, adUnitId, -1, null, status, providerStatus, networkStatus);
+        }
+
+        private static void OnExternalMediationRequest(int adType, string recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus, string networkStatus)
+        {
+#if UNITY_EDITOR
+            _plugin.OnExternalMediationRequest("google-admob", adType, recommendedAdUnitId, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
+#elif UNITY_IOS
+            NeftaPlugin_OnExternalMediationRequest("google-admob", adType, recommendedAdUnitId, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
+#elif UNITY_ANDROID
+            _plugin.CallStatic("OnExternalMediationRequest", "google-admob", adType, recommendedAdUnitId, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
+#endif
+        }
+
+        public static void OnExternalMediationImpression(AdType adType, String adUnitId, AdValue adValue)
+        {
+            string internalAdType = null;
+            if (adType == AdType.Banner)
+            {
+                internalAdType = "banner";
+            }
+            else if (adType == AdType.Interstitial)
+            {
+                internalAdType = "interstitial";
+            }
+            else if (adType == AdType.Rewarded)
+            {
+                internalAdType = "rewarded";
+            }
+            
+            var sb = new StringBuilder();
+            sb.Append("{\"mediation_provider\":\"google-admob\",\"ad_unit_id\":\"");
+            sb.Append(adUnitId);
+            sb.Append("\",\"ad_type\":\"");
+            sb.Append(internalAdType);
+            sb.Append("\",\"currency_code\":\"");
+            sb.Append(adValue.CurrencyCode);
+            sb.Append("\",\"value\":");
+            sb.Append((adValue.Value / 1000000.0).ToString(CultureInfo.InvariantCulture));
+
+            String network = null;
+            var responseInfo = _responses[adUnitId];
+            if (responseInfo != null)
+            {
+                var placement = responseInfo.GetResponseExtras()["mediation_group_name"];
+                if (!string.IsNullOrEmpty(placement))
+                {
+                    sb.Append(",\"placement\":\"");
+                    sb.Append(placement);
+                    sb.Append("\"");
+                }
+                
+                var adapterResponse = responseInfo.GetLoadedAdapterResponseInfo();
+                if (adapterResponse != null)
+                {
+                    network = adapterResponse.AdSourceInstanceName;
+                }
+
+                var others = responseInfo.GetAdapterResponses();
+                if (others != null && others.Count > 0)
+                {
+                    sb.Append(",\"waterfall\":[\"");
+                    for (var i = 0; i < others.Count; i++)
+                    {
+                        if (i != 0)
+                        {
+                            sb.Append("\",\"");
+                        }
+                        sb.Append(others[i].AdSourceInstanceName);
+                    }
+                    sb.Append("\"]");
+                }
+            }
+            
+            sb.Append(",\"precision\":");
+            sb.Append((int)adValue.Precision);
+            var data = sb.ToString();
+#if UNITY_EDITOR
+            _plugin.OnExternalMediationImpression(data);
+#elif UNITY_IOS
+             NeftaAdapter_OnExternalMediationImpressionAsString((int)adType, network, data);
+#elif UNITY_ANDROID
+            if (_adapter == null) {
+                _adapter = new AndroidJavaClass("com.google.ads.mediation.nefta.NeftaAdapter");
+            }
+            _adapter.CallStatic("OnExternalMediationImpressionAsString", (int)adType, network, data);
+#endif
+        }
+
         public static void GetBehaviourInsight(string[] insightList, OnBehaviourInsightCallback callback=null)
         {
             var request = new InsightRequest(callback ?? BehaviourInsightCallback);
@@ -216,6 +416,16 @@ namespace Nefta
             NeftaPlugin_SetContentRating(r);
 #elif UNITY_ANDROID
             _plugin.Call("SetContentRating", r);
+#endif
+        }
+        
+        public static void SetOverride(string root) {
+#if UNITY_EDITOR
+            _plugin.Override(root);
+#elif UNITY_IOS
+            NeftaPlugin_SetOverride(root);
+#elif UNITY_ANDROID
+            NeftaPluginClass.CallStatic("SetOverride", root);
 #endif
         }
         
