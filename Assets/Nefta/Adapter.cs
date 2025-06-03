@@ -46,8 +46,8 @@ namespace Nefta
 
             public InsightRequest(OnBehaviourInsightCallback callback)
             {
-                _id = _insightId;
-                _insightId++;
+                _id = Interlocked.CompareExchange(ref _insightId, 0, 0);
+                Interlocked.Increment(ref _insightId);
                 _returnContext = SynchronizationContext.Current;
                 _callback = callback;
             }
@@ -76,7 +76,7 @@ namespace Nefta
         private static extern void NeftaPlugin_OnExternalMediationRequest(string mediationProvider, int adType, string recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus, string networkStatus);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaAdapter_OnExternalMediationImpressionAsString(int adType, string network, string data);
+        private static extern void NeftaAdapter_OnExternalMediationImpressionAsString(int adType, string network, string data, double revenue, string precision);
 
         [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(bool present);
@@ -290,7 +290,10 @@ namespace Nefta
             {
                 internalAdType = "rewarded";
             }
-            
+
+            String network = null;
+            var revenue = adValue.Value / 1000000.0;
+            var precision = ((int)adValue.Precision).ToString();
             var sb = new StringBuilder();
             sb.Append("{\"mediation_provider\":\"google-admob\",\"ad_unit_id\":\"");
             sb.Append(adUnitId);
@@ -298,10 +301,7 @@ namespace Nefta
             sb.Append(internalAdType);
             sb.Append("\",\"currency_code\":\"");
             sb.Append(adValue.CurrencyCode);
-            sb.Append("\",\"value\":");
-            sb.Append((adValue.Value / 1000000.0).ToString(CultureInfo.InvariantCulture));
-
-            String network = null;
+            sb.Append("\"");
             var responseInfo = _responses[adUnitId];
             if (responseInfo != null)
             {
@@ -334,19 +334,16 @@ namespace Nefta
                     sb.Append("\"]");
                 }
             }
-            
-            sb.Append(",\"precision\":");
-            sb.Append((int)adValue.Precision);
             var data = sb.ToString();
 #if UNITY_EDITOR
             _plugin.OnExternalMediationImpression(data);
 #elif UNITY_IOS
-             NeftaAdapter_OnExternalMediationImpressionAsString((int)adType, network, data);
+             NeftaAdapter_OnExternalMediationImpressionAsString((int)adType, network, data, revenue, precision);
 #elif UNITY_ANDROID
             if (_adapter == null) {
                 _adapter = new AndroidJavaClass("com.google.ads.mediation.nefta.NeftaAdapter");
             }
-            _adapter.CallStatic("OnExternalMediationImpressionAsString", (int)adType, network, data);
+            _adapter.CallStatic("OnExternalMediationImpressionAsString", (int)adType, network, data, revenue, precision);
 #endif
         }
 

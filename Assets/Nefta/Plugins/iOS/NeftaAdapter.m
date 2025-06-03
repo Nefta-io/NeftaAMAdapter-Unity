@@ -63,7 +63,7 @@ static NSMutableDictionary<NSString *, GADResponseInfo *> *_responses = nil;
     } else if (adType == AdTypeRewarded) {
         internalAdType = @"rewarded";
     }
-                                    
+    
     NSMutableDictionary *data = [NSMutableDictionary dictionary];
     [data setObject: _mediationProvider forKey: @"mediation_provider"];
     [data setObject: internalAdType forKey: @"ad_type"];
@@ -98,14 +98,23 @@ static NSMutableDictionary<NSString *, GADResponseInfo *> *_responses = nil;
     
     NSString* auctionId = nil;
     NSString* creativeId = nil;
-    if ([networkName caseInsensitiveCompare: @"nefta"] == NSOrderedSame) {
-        if (adType == AdTypeBanner) {
+    int type = 0;
+    bool isNeftaNetwork = [networkName caseInsensitiveCompare: @"nefta"] == NSOrderedSame;
+    if (adType == AdTypeBanner) {
+        type = 1;
+        if (isNeftaNetwork) {
             auctionId = NeftaBanner.GetLastAuctionId;
             creativeId = NeftaBanner.GetLastCreativeId;
-        } else if (adType == AdTypeInterstitial) {
+        }
+    } else if (adType == AdTypeInterstitial) {
+        type = 2;
+        if (isNeftaNetwork) {
             auctionId = NeftaInterstitial.GetLastAuctionId;
             creativeId = NeftaInterstitial.GetLastCreativeId;
-        } else if (adType == AdTypeRewarded) {
+        }
+    } else if (adType == AdTypeRewarded) {
+        type = 3;
+        if (isNeftaNetwork) {
             auctionId = NeftaRewarded.GetLastAuctionId;
             creativeId = NeftaRewarded.GetLastCreativeId;
         }
@@ -117,13 +126,14 @@ static NSMutableDictionary<NSString *, GADResponseInfo *> *_responses = nil;
         [data setObject: creativeId forKey: @"creative_id"];
     }
 
-    [NeftaPlugin OnExternalMediationImpression: _mediationProvider data: data];
+    NSString *precisionAsString = [NSString stringWithFormat:@"%ld", adValue.precision];
+    [NeftaPlugin OnExternalMediationImpression: _mediationProvider data: data adType: type revenue: [adValue.value doubleValue] precision: precisionAsString];
 }
 
-+ (void) OnExternalMediationImpressionAsString:(int)adType network:(NSString*)network data:(NSString *)data {
++ (void) OnExternalMediationImpressionAsString:(int)adType network:(NSString*)network data:(NSString *)data revenue:(double)revenue precision:(NSString *)precision {
     NSString *auctionId = nil;
     NSString *creativeId = nil;
-    if ([network isEqual: @"nefta"]) {
+    if ([network caseInsensitiveCompare: @"nefta"] == NSOrderedSame) {
         if (adType == (int)AdTypeBanner) {
             auctionId = NeftaBanner.GetLastAuctionId;
             creativeId = NeftaBanner.GetLastCreativeId;
@@ -147,9 +157,12 @@ static NSMutableDictionary<NSString *, GADResponseInfo *> *_responses = nil;
         [sb appendString: @"\",\"creative_id\":\""];
         [sb appendString: creativeId];
     }
-    [sb appendString: @"\""];
+    [sb appendString: @"\",\"precision\":"];
+    [sb appendString: precision];
+    [sb appendString: @",\"revenue\":"];
+    [sb appendFormat: @"%f", revenue];
     
-    [NeftaPlugin OnExternalMediationImpressionAsString: _mediationProvider data: sb];
+    [NeftaPlugin OnExternalMediationImpressionAsString: _mediationProvider data: sb adType: adType revenue: revenue precision: precision];
 }
 
 NSString *_errorDomain = @"NeftaAMAdapter";
@@ -168,7 +181,7 @@ static NeftaPlugin *_plugin;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {2, 2, 4};
+    GADVersionNumber version = {2, 2, 5};
     return version;
 }
 
@@ -260,7 +273,7 @@ extern "C" {
     void NeftaPlugin_Init(const char *appId, OnBehaviourInsight onBehaviourInsight);
     void NeftaPlugin_Record(int type, int category, int subCategory, const char *name, long value, const char *customPayload);
     void NeftaPlugin_OnExternalMediationRequest(const char *mediationProvider, int adType, const char *recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status, const char *providerStatus, const char *networkStatus);
-    void NeftaAdapter_OnExternalMediationImpressionAsString(int adType, const char *network, const char *data);
+    void NeftaAdapter_OnExternalMediationImpressionAsString(int adType, const char *network, const char *data, double revenue, const char *precision);
     const char * NeftaPlugin_GetNuid(bool present);
     void NeftaPlugin_SetContentRating(const char *rating);
     void NeftaPlugin_GetBehaviourInsight(int requestId, const char *insights);
@@ -297,10 +310,11 @@ void NeftaPlugin_OnExternalMediationRequest(const char *mediationProvider, int a
     [NeftaPlugin OnExternalMediationRequest: mP adType: adType recommendedAdUnitId: r requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: a revenue: revenue precision: p status: status providerStatus: pS networkStatus: nS];
 }
 
-void NeftaAdapter_OnExternalMediationImpressionAsString(int adType, const char *network, const char *data) {
+void NeftaAdapter_OnExternalMediationImpressionAsString(int adType, const char *network, const char *data, double revenue, const char *precision) {
     NSString *n = network ? [NSString stringWithUTF8String: network] : nil;
     NSString *d = data ? [NSString stringWithUTF8String: data] : nil;
-    [NeftaAdapter OnExternalMediationImpressionAsString: adType network: n data: d];
+    NSString *p = precision ? [NSString stringWithUTF8String: precision] : nil;
+    [NeftaAdapter OnExternalMediationImpressionAsString: adType network: n data: d revenue: revenue precision: p];
 }
 
 const char * NeftaPlugin_GetNuid(bool present) {
