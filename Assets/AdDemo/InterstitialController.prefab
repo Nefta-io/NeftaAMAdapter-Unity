@@ -107,6 +107,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _title: {fileID: 79335269495383583}
   _load: {fileID: 4611055537831031333}
+  _loadText: {fileID: 7448478616998208650}
   _show: {fileID: 3815034181792503351}
   _status: {fileID: 2488131742159308068}
 --- !u!1 &79335268833673615

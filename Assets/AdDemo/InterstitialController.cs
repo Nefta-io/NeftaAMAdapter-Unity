@@ -11,95 +11,79 @@ namespace AdDemo
 {
     public class InterstitialController : MonoBehaviour
     {
-        private class State
-        {
-            public String _status;
-            public bool _canShow;
-            public bool _isDirty;
-        }
-        
 #if UNITY_IPHONE
         private const string DefaultAdUnitId = "ca-app-pub-1193175835908241/4419202401";
 #else
         private const string DefaultAdUnitId = "ca-app-pub-1193175835908241/9381753032";
 #endif
-        private const string AdUnitIdInsightName = "recommended_interstitial_ad_unit_id";
-        private const string FloorPriceInsightName = "calculated_user_floor_price_interstitial";
         
         [SerializeField] private Text _title;
         [SerializeField] private Button _load;
+        [SerializeField] private Text _loadText;
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
         
-        private string _recommendedAdUnitId;
-        private double _calculatedBidFloor;
-        private Coroutine _fallbackCoroutine;
-        private string _loadedAdUnitId;
         private InterstitialAd _interstitialAd;
+        private string _selectedAdUnit;
+        private AdInsight _usedInsight;
+        private bool _isLoading;
         
-        private State _state = new State();
+        private static readonly Queue<Action> _mainThreadQueue = new();
         
         private void GetInsightsAndLoad()
         {
-            Adapter.GetBehaviourInsight(new string[] { AdUnitIdInsightName, FloorPriceInsightName }, OnBehaviourInsight);
-            
-            _fallbackCoroutine = StartCoroutine(LoadFallback());
+            Adapter.GetInsights(Insights.Interstitial, Load, 5);
         }
         
-        private void OnBehaviourInsight(Dictionary<string, Insight> insights)
+        private void Load(Insights insights)
         {
-            _recommendedAdUnitId = null;
-            _calculatedBidFloor = 0;
-            if (insights.TryGetValue(AdUnitIdInsightName, out var insight))
-            {
-                _recommendedAdUnitId = insight._string;
-            }
-            if (insights.TryGetValue(FloorPriceInsightName, out insight))
-            {
-                _calculatedBidFloor = insight._float;
-            }
-
-            Debug.Log($"OnBehaviourInsight for Interstitial recommended AdUnit: {_recommendedAdUnitId}, calculated bid floor: {_calculatedBidFloor}");
-            
-            if (_fallbackCoroutine != null)
-            {
-                Load();
-            }
-        }
-
-        private void Load()
-        {
-            if (_fallbackCoroutine != null)
-            {
-                StopCoroutine(_fallbackCoroutine);
-                _fallbackCoroutine = null;
-            }
-            
-            _loadedAdUnitId = DefaultAdUnitId;
-            if (!string.IsNullOrEmpty(_recommendedAdUnitId))
-            {
-                _loadedAdUnitId = _recommendedAdUnitId;
+            _selectedAdUnit = DefaultAdUnitId;
+            _usedInsight = insights._interstitial;
+            if (_usedInsight != null) {
+                _selectedAdUnit = _usedInsight._adUnit;
             }
             
             var adRequest = new AdRequest();
-            InterstitialAd.Load(_loadedAdUnitId, adRequest, (InterstitialAd ad, LoadAdError error) =>
+            InterstitialAd.Load(_selectedAdUnit, adRequest, (InterstitialAd ad, LoadAdError error) =>
             {
                 if (error != null)
                 {
-                    Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Interstitial, _recommendedAdUnitId, _calculatedBidFloor, _loadedAdUnitId, error);
+                    Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Interstitial, _usedInsight, _selectedAdUnit, error);
                     
-                    SetStatus("Interstitial ad failed to load an ad with error : " + error);
+                    lock (_mainThreadQueue)
+                    {
+                        _mainThreadQueue.Enqueue(() =>
+                        {
+                            SetStatus("Interstitial ad failed to load an ad with error : " + error);
+                            StartCoroutine(ReTryLoad());
+                        });
+                    }
                     return;
                 }
                 if (ad == null)
                 {
-                    SetStatus("Unexpected error: Interstitial load event fired with null ad and null error.");
+                    lock (_mainThreadQueue)
+                    {
+                        _mainThreadQueue.Enqueue(() =>
+                        {
+                            SetStatus("Unexpected error: Interstitial load event fired with null ad and null error.");
+                        });
+                    }
                     return;
                 }
                 
-                Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Interstitial, _recommendedAdUnitId, _calculatedBidFloor, _loadedAdUnitId, ad);
+                Adapter.OnExternalMediationRequestLoaded(_usedInsight, _selectedAdUnit, ad);
                 
-                SetStatus("Interstitial ad loaded with response : " + ad.GetResponseInfo(), true);
+                lock (_mainThreadQueue)
+                {
+                    _mainThreadQueue.Enqueue(() =>
+                    {
+                        SetStatus($"Interstitial ad loaded with response: {_selectedAdUnit}");
+                        SetLoadingButton(false);
+                        _load.interactable = false;
+                        _show.interactable = true;
+                    });
+                }
                 _interstitialAd = ad;
                 _interstitialAd.OnAdPaid += OnAdPaid;
                 _interstitialAd.OnAdImpressionRecorded += OnAdImpressionRecorded;
@@ -112,48 +96,62 @@ namespace AdDemo
         
         private void OnAdPaid(AdValue adValue)
         {
-            Adapter.OnExternalMediationImpression(Adapter.AdType.Interstitial, _loadedAdUnitId, adValue);
+            Adapter.OnExternalMediationImpression(_selectedAdUnit, _interstitialAd, adValue);
 
-            SetStatus($"OnAdPaid {adValue.Value}");
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() => { SetStatus($"OnAdPaid {adValue.Value}"); });
+            }
+        }
+        
+        private IEnumerator ReTryLoad()
+        {
+            yield return new WaitForSeconds(5f);
+            
+            if (_isLoading)
+            {
+                GetInsightsAndLoad();   
+            }
         }
         
         public void Init()
         {
             _load.onClick.AddListener(OnLoadClick);
             _show.onClick.AddListener(OnShowClick);
+            _show.interactable = false;
             
-            SetStatus("Interstitial status", false);
+            SetStatus("Interstitial status");
         }
 
         private void OnLoadClick()
         {
-            GetInsightsAndLoad();
-            
-            AddDemoGameEventExample();
+            if (_isLoading)
+            {
+                SetLoadingButton(false);
+            }
+            else
+            {
+                SetStatus("GetInsightsAndLoad...");
+                GetInsightsAndLoad();
+                SetLoadingButton(true);
+                AddDemoGameEventExample();
+            }
         }
         
         private void OnShowClick()
         {
             if (_interstitialAd != null && _interstitialAd.CanShowAd())
             {
-                SetStatus("Show interstitial", false);
+                SetStatus("Show interstitial");
                 _interstitialAd.Show();
             }
             else
             {
-                SetStatus("Interstitial not ready", false);
+                SetStatus("Interstitial not ready");
             }
 
+            _load.interactable = true;
             _show.interactable = false;
-        }
-        
-        private IEnumerator LoadFallback()
-        {
-            yield return new WaitForSeconds(5f);
-
-            _recommendedAdUnitId = null;
-            _calculatedBidFloor = 0;
-            Load();
         }
 
         private void OnAdImpressionRecorded()
@@ -190,33 +188,16 @@ namespace AdDemo
         private void SetStatus(string status)
         {
             Debug.Log(status);
-            lock (_state)
-            {
-                _state._status = status;
-                _state._isDirty = true;
-            }
+            _status.text = status;
         }
         
-        private void SetStatus(string status, bool canShow)
-        {
-            Debug.Log(status);
-            lock (_state)
-            {
-                _state._status = status;
-                _state._canShow = canShow;
-                _state._isDirty = true;
-            }
-        }
-
         private void Update()
         {
-            lock (_state)
+            lock (_mainThreadQueue)
             {
-                if (_state._isDirty)
+                while (_mainThreadQueue.Count > 0)
                 {
-                    _status.text = _state._status;
-                    _show.interactable = _state._canShow;
-                    _state._isDirty = false;
+                    _mainThreadQueue.Dequeue()?.Invoke();
                 }
             }
         }
@@ -227,7 +208,19 @@ namespace AdDemo
             var method = (ReceiveMethod) UnityEngine.Random.Range(0, 8);
             var value = UnityEngine.Random.Range(0, 101);
             Adapter.Record(new ReceiveEvent(category) { _method = method, _name = $"receive_{category} {method} {value}", _value = value });
-
+        }
+        
+        private void SetLoadingButton(bool isLoading)
+        {
+            _isLoading = isLoading;
+            if (_isLoading)
+            {
+                _loadText.text = "Cancel";
+            }
+            else
+            {
+                _loadText.text = "Load";
+            }
         }
     }
 }

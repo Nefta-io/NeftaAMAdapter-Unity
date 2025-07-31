@@ -4,7 +4,6 @@ apply plugin: 'com.android.library'
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 // Android Resolver Dependencies Start
-    implementation 'androidx.lifecycle:lifecycle-process:2.4.1' // Assets/Nefta/Editor/Dependencies.xml:4
     implementation 'com.google.android.gms:play-services-ads:22.3.0' // Assets/GoogleMobileAds/Editor/GoogleMobileAdsDependencies.xml:7
     implementation 'com.google.android.ump:user-messaging-platform:2.1.0' // Assets/GoogleMobileAds/Editor/GoogleUmpDependencies.xml:7
 // Android Resolver Dependencies End

@@ -1,3 +1,4 @@
+using GoogleMobileAds.Api;
 using Nefta;
 using UnityEngine;
 
@@ -6,9 +7,9 @@ namespace AdDemo
     public class AdDemoController : MonoBehaviour
     {
 #if UNITY_IOS
-        private const string _neftaAppId = "5661184053215232";
+        private const string _neftaAppId = "5650928946380800";
 #else // UNITY_ANDROID
-        private const string _neftaAppId = "5643649824063488";
+        private const string _neftaAppId = "5734113336098816";
 #endif
         private bool _isBannerShown;
 
@@ -31,6 +32,14 @@ namespace AdDemo
             _banner.Init();
             _interstitial.Init();
             _rewarded.Init();
+            
+            RequestConfiguration requestConfiguration = new RequestConfiguration();
+            #if UNITY_IPHONE
+            requestConfiguration.TestDeviceIds.Add("284dcf66160f8ea305826b4cc2abe58e");
+            #else
+            
+            #endif
+            MobileAds.SetRequestConfiguration(requestConfiguration);
         }
         
         private string[] GetDebugParameters()

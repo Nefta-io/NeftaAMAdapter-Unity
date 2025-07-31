@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a187246822bbb47529482707f3e0eff8, type: 3}
   m_Name: GoogleMobileAdsSettings
   m_EditorClassIdentifier: 
-  adMobAndroidAppId: ca-app-pub-1193175835908241~8925751255
-  adMobIOSAppId: ca-app-pub-1193175835908241~4060577002
+  adMobAndroidAppId: ca-app-pub-1193175835908241~7171141214
+  adMobIOSAppId: ca-app-pub-1193175835908241~4610774092
   delayAppMeasurementInit: 0
   enableKotlinXCoroutinesPackagingOption: 1
   optimizeInitialization: 0

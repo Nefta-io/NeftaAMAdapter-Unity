@@ -22,8 +22,6 @@ namespace AdDemo
 #else
         private const string DefaultAdUnitId = "ca-app-pub-1193175835908241/4544977870";
 #endif
-        private const string AdUnitIdInsightName = "recommended_banner_ad_unit_id";
-        private const string FloorPriceInsightName = "calculated_user_floor_price_banner";
         
         [SerializeField] private Text _title;
         [SerializeField] private Button _show;
@@ -31,56 +29,25 @@ namespace AdDemo
         [SerializeField] private Text _status;
 
         private BannerView _bannerView;
-        private string _recommendedAdUnitId;
-        private double _calculatedBidFloor;
-        private Coroutine _fallbackCoroutine;
-        private String _loadedAdUnitId;
+        private string _selectedAdUnit;
+        private AdInsight _usedInsight;
         
-        private State _state = new State();
+        private static readonly Queue<Action> _mainThreadQueue = new();
         
         private void GetInsightsAndLoad()
         {
-            Adapter.GetBehaviourInsight(new string[] { AdUnitIdInsightName, FloorPriceInsightName }, OnBehaviourInsight);
-            
-            _fallbackCoroutine = StartCoroutine(LoadFallback());
+            Adapter.GetInsights(Insights.Banner, Load, 5);
         }
         
-        private void OnBehaviourInsight(Dictionary<string, Insight> insights)
+        private void Load(Insights insights)
         {
-            _recommendedAdUnitId = null;
-            _calculatedBidFloor = 0;
-            if (insights.TryGetValue(AdUnitIdInsightName, out var insight))
-            {
-                _recommendedAdUnitId = insight._string;
-            }
-            if (insights.TryGetValue(FloorPriceInsightName, out insight))
-            {
-                _calculatedBidFloor = insight._float;
+            _selectedAdUnit = DefaultAdUnitId;
+            _usedInsight = insights._banner;
+            if (_usedInsight != null) {
+                _selectedAdUnit = _usedInsight._adUnit;
             }
             
-            Debug.Log($"OnBehaviourInsight for Banner calculated bid floor: {_calculatedBidFloor}");
-            
-            if (_fallbackCoroutine != null)
-            {
-                Load();
-            }
-        }
-        
-        private void Load()
-        {
-            if (_fallbackCoroutine != null)
-            {
-                StopCoroutine(_fallbackCoroutine);
-                _fallbackCoroutine = null;
-            }
-            
-            _loadedAdUnitId = DefaultAdUnitId;
-            if (!string.IsNullOrEmpty(_recommendedAdUnitId))
-            {
-                _loadedAdUnitId = _recommendedAdUnitId;
-            }
-            
-            _bannerView = new BannerView(_loadedAdUnitId, AdSize.Banner, AdPosition.Top);
+            _bannerView = new BannerView(_selectedAdUnit, AdSize.Banner, AdPosition.Top);
             _bannerView.OnBannerAdLoaded += BannerOnAdLoadedEvent;
             _bannerView.OnBannerAdLoadFailed += BannerOnAdLoadFailedEvent;
             _bannerView.OnAdClicked += BannerOnAdClickedEvent;
@@ -94,23 +61,35 @@ namespace AdDemo
         
         private void BannerOnAdLoadFailedEvent(LoadAdError error)
         {
-            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Banner, _recommendedAdUnitId, _calculatedBidFloor, _loadedAdUnitId, error);
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Banner, _usedInsight, _selectedAdUnit, error);
             
             SetStatus($"BannerOnAdLoadFailedEvent {error}");
+            
+            StartCoroutine(ReTryLoad());
         }
         
         private void BannerOnAdLoadedEvent()
         {
-            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Banner, _recommendedAdUnitId, _calculatedBidFloor, _loadedAdUnitId, _bannerView);
+            Adapter.OnExternalMediationRequestLoaded(_usedInsight, _selectedAdUnit, _bannerView);
 
             SetStatus("BannerOnAdLoadedEvent");
         }
         
         private void OnAdPaid(AdValue adValue)
         {
-            Adapter.OnExternalMediationImpression(Adapter.AdType.Banner, _loadedAdUnitId, adValue);
+            Adapter.OnExternalMediationImpression(_selectedAdUnit, _bannerView, adValue);
 
-            SetStatus($"OnAdPaid {adValue.Value}");
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() => { SetStatus($"OnAdPaid {adValue.Value}"); });
+            }
+        }
+        
+        private IEnumerator ReTryLoad()
+        {
+            yield return new WaitForSeconds(5f);
+            
+            GetInsightsAndLoad();
         }
         
         public void Init()
@@ -141,16 +120,9 @@ namespace AdDemo
                 _bannerView.Destroy();
                 _bannerView = null;
             }
+            
+            _show.interactable = true;
             _hide.interactable = false;
-        }
-        
-        private IEnumerator LoadFallback()
-        {
-            yield return new WaitForSeconds(5f);
-
-            _recommendedAdUnitId = null;
-            _calculatedBidFloor = 0f;
-            Load();
         }
 
         private void BannerOnAdClickedEvent()
@@ -171,21 +143,16 @@ namespace AdDemo
         private void SetStatus(string status)
         {
             Debug.Log(status);
-            lock (_state)
-            {
-                _state._status = status;
-                _state._isDirty = true;
-            }
+            _status.text = status;
         }
-
+        
         private void Update()
         {
-            lock (_state)
+            lock (_mainThreadQueue)
             {
-                if (_state._isDirty)
+                while (_mainThreadQueue.Count > 0)
                 {
-                    _status.text = _state._status;
-                    _state._isDirty = false;
+                    _mainThreadQueue.Dequeue()?.Invoke();
                 }
             }
         }
