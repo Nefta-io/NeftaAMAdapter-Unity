@@ -334,7 +334,7 @@ namespace Nefta
             }
             var data = sb.ToString();
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationImpressionAsString("google-admob", data, (int)adType, revenue, precision);
+            _plugin.OnExternalMediationImpression(data);
 #elif UNITY_IOS
              NeftaAdapter_OnExternalMediationImpressionAsString((int)adType, network, data, revenue, precision);
 #elif UNITY_ANDROID

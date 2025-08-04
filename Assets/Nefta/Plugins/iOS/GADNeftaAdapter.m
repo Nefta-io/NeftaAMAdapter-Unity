@@ -81,7 +81,7 @@ NSString * const _mediationProvider = @"google-admob";
     }
     
     NSMutableDictionary *data = [NSMutableDictionary dictionary];
-    [data setObject: adType forKey: adType];
+    [data setObject: adType forKey: @"ad_tpe"];
     [data setObject: adUnitId forKey: @"ad_unit_id"];
     [data setObject: adValue.value forKey: @"value"];
     [data setObject: @(adValue.precision) forKey: @"precision"];
@@ -186,7 +186,7 @@ static NeftaPlugin *_plugin;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {4, 3, 0};
+    GADVersionNumber version = {4, 3, 1};
     return version;
 }
 
