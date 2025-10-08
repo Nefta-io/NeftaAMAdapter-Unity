@@ -24,7 +24,7 @@ namespace Editor
             };
             
             NeftaWindow.TryGetPluginImporters();
-            NeftaWindow.TogglePlugins(true);
+            NeftaWindow.TogglePlugins(false);
             
             EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
             
@@ -32,11 +32,11 @@ namespace Editor
 
             if (report.summary.result == BuildResult.Succeeded)
             {
-                Debug.Log($"Build successful");
+                Debug.Log("Build successful");
             }
             else if (report.summary.result == BuildResult.Failed)
             {
-                Debug.LogError($"Build failed");
+                Debug.LogError("Build failed");
             }
         }
 

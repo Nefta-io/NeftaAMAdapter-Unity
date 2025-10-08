@@ -3,7 +3,8 @@ namespace Nefta
 {
     public interface IAdapterListener
     {
-        void IOnInsights(int id, string insights);
+        void IOnReady(string adUnits);
+        void IOnInsights(int id, int adapterResponseType, string adapterResponse);
     }
 }
 #endif

@@ -10,10 +10,15 @@ namespace Nefta
         public NeftaAdapterListener() : base("com.nefta.sdk.AdapterCallback")
         {
         }
-
-        public void IOnInsights(int id, string insights)
+        
+        public void IOnReady(string adUnits)
         {
-            Adapter.IOnInsights(id, insights);
+            Adapter.IOnReady(adUnits);
+        }
+
+        public void IOnInsights(int id, int adapterResponseType, string adapterResponse)
+        {
+            Adapter.IOnInsights(id, adapterResponseType, adapterResponse);
         }
     }
 }

@@ -11,15 +11,12 @@ namespace AdDemo
 #else // UNITY_ANDROID
         private const string _neftaAppId = "5734113336098816";
 #endif
-        private bool _isBannerShown;
-
-        [SerializeField] private BannerController _banner;
+        
         [SerializeField] private InterstitialController _interstitial;
         [SerializeField] private RewardedController _rewarded;
         
         private void Awake()
         {
-            Adapter.EnableLogging(true);
             Adapter.Init(_neftaAppId);
             var debugParams = GetDebugParameters();
             if (debugParams != null)
@@ -27,17 +24,21 @@ namespace AdDemo
                 Adapter.SetOverride(debugParams[0]);
             }
             
-            Adapter.SetContentRating(Adapter.ContentRating.General);
+            Adapter.EnableLogging(true);
+            Adapter.SetExtraParameter(Adapter.ExtParams.TestGroup, "split-am");
             
-            _banner.Init();
             _interstitial.Init();
             _rewarded.Init();
             
             RequestConfiguration requestConfiguration = new RequestConfiguration();
             #if UNITY_IPHONE
+            requestConfiguration.TestDeviceIds.Add("87b6abe09a8764496b8c5d1c1b4ac23d");
             requestConfiguration.TestDeviceIds.Add("284dcf66160f8ea305826b4cc2abe58e");
+            requestConfiguration.TestDeviceIds.Add("b78b6e076ab7de99a8eb15adb2ab2634");
             #else
-            
+            requestConfiguration.TestDeviceIds.Add("9429116F2099040F92F84E023664B484");
+            requestConfiguration.TestDeviceIds.Add("0D61331B015C8F81BCEEC7FD449CDEE7");
+            requestConfiguration.TestDeviceIds.Add("40E5105E483D16020842051E0FFDCB4D");
             #endif
             MobileAds.SetRequestConfiguration(requestConfiguration);
         }

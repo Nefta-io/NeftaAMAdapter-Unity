@@ -16,178 +16,314 @@ namespace AdDemo
 #else
         private const string DefaultAdUnitId = "ca-app-pub-1193175835908241/9381753032";
 #endif
+
+        private AdRequest _dynamicRequest;
+        private AdInsight _dynamicInsight;
+        private InterstitialAd _dynamicInterstitial;
+        private AdRequest _defaultRequest;
+        private InterstitialAd _defaultInterstitial;
+        private InterstitialAd _presentingInterstitial;
         
         [SerializeField] private Text _title;
-        [SerializeField] private Button _load;
+        [SerializeField] private Toggle _load;
         [SerializeField] private Text _loadText;
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
         
-        private InterstitialAd _interstitialAd;
-        private string _selectedAdUnit;
-        private AdInsight _usedInsight;
-        private bool _isLoading;
-        
         private static readonly Queue<Action> _mainThreadQueue = new();
         
-        private void GetInsightsAndLoad()
+        private void StartLoading()
         {
-            Adapter.GetInsights(Insights.Interstitial, Load, 5);
+            if (_dynamicRequest == null)
+            {
+                _dynamicInsight = null;
+                GetInsightsAndLoad(null);   
+            }
+            if (_defaultRequest == null)
+            {
+                LoadDefault();   
+            }
         }
         
-        private void Load(Insights insights)
+        private void GetInsightsAndLoad(AdInsight previousInsight)
         {
-            _selectedAdUnit = DefaultAdUnitId;
-            _usedInsight = insights._interstitial;
-            if (_usedInsight != null) {
-                _selectedAdUnit = _usedInsight._adUnit;
-            }
-            
-            var adRequest = new AdRequest();
-            InterstitialAd.Load(_selectedAdUnit, adRequest, (InterstitialAd ad, LoadAdError error) =>
+            _dynamicRequest = new AdRequest();
+            Adapter.GetInsights(Insights.Interstitial, previousInsight, LoadWithInsights, 5);
+        }
+        
+        private void LoadWithInsights(Insights insights)
+        {
+            _dynamicInsight = insights._interstitial;
+            if (_dynamicInsight != null && !string.IsNullOrEmpty(_dynamicInsight._adUnit))
             {
-                if (error != null)
+                var recommendedAdUnit = _dynamicInsight._adUnit;
+                SetStatus($"Loading Dynamic {recommendedAdUnit}");
+                Adapter.OnExternalMediationRequest(_dynamicInsight, _dynamicRequest, recommendedAdUnit);
+                
+                InterstitialAd.Load(recommendedAdUnit, _dynamicRequest, (InterstitialAd ad, LoadAdError error) =>
                 {
-                    Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Interstitial, _usedInsight, _selectedAdUnit, error);
+                    if (error != null)
+                    {
+                        lock (_mainThreadQueue)
+                        {
+                            _mainThreadQueue.Enqueue(() =>
+                            {
+                                Adapter.OnExternalMediationRequestFailed(_dynamicRequest, error);
+                                _dynamicRequest = null;
+                                
+                                SetStatus("Dynamic failed to load with: " + error);
+                                StartCoroutine(ReTryLoad(true));
+                            });
+                        }
+
+                        return;
+                    }
+
+                    if (ad == null)
+                    {
+                        _dynamicRequest = null;
+                        lock (_mainThreadQueue)
+                        {
+                            _mainThreadQueue.Enqueue(() => { SetStatus("Unexpected error: Dynamic load event fired with null ad and null error."); });
+                        }
+
+                        return;
+                    }
+                    
+                    _dynamicInterstitial = ad;
+                    
+                    ad.OnAdPaid += OnAdPaid;
+                    ad.OnAdImpressionRecorded += OnAdImpressionRecorded;
+                    ad.OnAdClicked += OnAdClicked;
+                    ad.OnAdFullScreenContentOpened += OnAdFullScreenContentOpened;
+                    ad.OnAdFullScreenContentClosed += OnAdFullScreenContentClosed;
+                    ad.OnAdFullScreenContentFailed += OnAdFullScreenContentFailed;
                     
                     lock (_mainThreadQueue)
                     {
                         _mainThreadQueue.Enqueue(() =>
                         {
-                            SetStatus("Interstitial ad failed to load an ad with error : " + error);
-                            StartCoroutine(ReTryLoad());
+                            Adapter.OnExternalMediationRequestLoaded(ad, _dynamicRequest);
+                            
+                            SetStatus($"Dynamic {recommendedAdUnit} loaded with response: {ad}");
+                            
+                            UpdateShowButton();
                         });
                     }
-                    return;
-                }
-                if (ad == null)
+                });
+            }
+            else
+            {
+                _dynamicRequest = null;
+            }
+        }
+
+        private void LoadDefault()
+        {
+            SetStatus($"Loading Default: ${DefaultAdUnitId}");
+            
+            _defaultRequest = new AdRequest();
+            Adapter.OnExternalMediationRequest(Adapter.AdType.Interstitial, _defaultRequest, DefaultAdUnitId);
+            InterstitialAd.Load(DefaultAdUnitId, _defaultRequest, (InterstitialAd ad, LoadAdError error) =>
+            {
+                if (error != null)
                 {
+                    _defaultRequest = null;
                     lock (_mainThreadQueue)
                     {
                         _mainThreadQueue.Enqueue(() =>
                         {
-                            SetStatus("Unexpected error: Interstitial load event fired with null ad and null error.");
+                            Adapter.OnExternalMediationRequestFailed(_defaultRequest, error);
+                            
+                            SetStatus($"Default failed to load with: {error}");
+                            StartCoroutine(ReTryLoad(false));
                         });
                     }
                     return;
                 }
+
+                if (ad == null)
+                {
+                    _defaultRequest = null;
+                    lock (_mainThreadQueue)
+                    {
+                        _mainThreadQueue.Enqueue(() => { SetStatus("Unexpected error: Default load event fired with null ad and null error."); });
+                    }
+                    return;
+                }
                 
-                Adapter.OnExternalMediationRequestLoaded(_usedInsight, _selectedAdUnit, ad);
+                _defaultInterstitial = ad;
+                
+                ad.OnAdPaid += OnAdPaid;
+                ad.OnAdImpressionRecorded += OnAdImpressionRecorded;
+                ad.OnAdClicked += OnAdClicked;
+                ad.OnAdFullScreenContentOpened += OnAdFullScreenContentOpened;
+                ad.OnAdFullScreenContentClosed += OnAdFullScreenContentClosed;
+                ad.OnAdFullScreenContentFailed += OnAdFullScreenContentFailed;
                 
                 lock (_mainThreadQueue)
                 {
                     _mainThreadQueue.Enqueue(() =>
                     {
-                        SetStatus($"Interstitial ad loaded with response: {_selectedAdUnit}");
-                        SetLoadingButton(false);
-                        _load.interactable = false;
-                        _show.interactable = true;
+                        Adapter.OnExternalMediationRequestLoaded(_defaultInterstitial, _defaultRequest);
+                        
+                        SetStatus($"Default {DefaultAdUnitId} loaded with response {_defaultInterstitial}");
+
+                        UpdateShowButton();
                     });
                 }
-                _interstitialAd = ad;
-                _interstitialAd.OnAdPaid += OnAdPaid;
-                _interstitialAd.OnAdImpressionRecorded += OnAdImpressionRecorded;
-                _interstitialAd.OnAdClicked += OnAdClicked;
-                _interstitialAd.OnAdFullScreenContentOpened += OnAdFullScreenContentOpened;
-                _interstitialAd.OnAdFullScreenContentClosed += OnAdFullScreenContentClosed;
-                _interstitialAd.OnAdFullScreenContentFailed += OnAdFullScreenContentFailed;
             });
         }
         
         private void OnAdPaid(AdValue adValue)
         {
-            Adapter.OnExternalMediationImpression(_selectedAdUnit, _interstitialAd, adValue);
-
             lock (_mainThreadQueue)
             {
-                _mainThreadQueue.Enqueue(() => { SetStatus($"OnAdPaid {adValue.Value}"); });
+                _mainThreadQueue.Enqueue(() =>
+                {
+                    Adapter.OnExternalMediationImpression(_presentingInterstitial, adValue);
+                    
+                    SetStatus($"OnAdPaid {adValue.Value}");
+                });
             }
         }
         
-        private IEnumerator ReTryLoad()
+        private void OnAdClicked()
+        {
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() =>
+                {
+                    Adapter.OnExternalMediationClick(_presentingInterstitial);
+
+                    SetStatus("OnAdClicked");
+                });
+            }
+        }
+        
+        private IEnumerator ReTryLoad(bool isDynamic)
         {
             yield return new WaitForSeconds(5f);
             
-            if (_isLoading)
+            if (_load.isOn)
             {
-                GetInsightsAndLoad();   
+                if (isDynamic)
+                {
+                    if (_dynamicRequest == null)
+                    {
+                        GetInsightsAndLoad(_dynamicInsight);
+                    }    
+                }
+                else
+                {
+                    if (_defaultRequest == null)
+                    {
+                        LoadDefault();
+                    }
+                }
             }
         }
         
         public void Init()
         {
-            _load.onClick.AddListener(OnLoadClick);
+            _load.onValueChanged.AddListener(OnLoadChanged);
             _show.onClick.AddListener(OnShowClick);
             _show.interactable = false;
             
             SetStatus("Interstitial status");
         }
 
-        private void OnLoadClick()
+        private void OnLoadChanged(bool isOn)
         {
-            if (_isLoading)
+            if (isOn)
             {
-                SetLoadingButton(false);
+                StartLoading();   
             }
             else
             {
-                SetStatus("GetInsightsAndLoad...");
-                GetInsightsAndLoad();
-                SetLoadingButton(true);
-                AddDemoGameEventExample();
+                _dynamicInsight = null;
             }
+            
+            AddDemoGameEventExample();
         }
         
         private void OnShowClick()
         {
-            if (_interstitialAd != null && _interstitialAd.CanShowAd())
+            var isShown = false;
+            if (_dynamicInterstitial != null)
             {
-                SetStatus("Show interstitial");
-                _interstitialAd.Show();
-            }
-            else
-            {
-                SetStatus("Interstitial not ready");
+                if (_dynamicInterstitial.CanShowAd())
+                {
+                    isShown = true;
+                    SetStatus("Showing Dynamic");
+                    _dynamicInterstitial.Show();
+                    _presentingInterstitial = _dynamicInterstitial;
+                }
+                _dynamicInterstitial = null;
+                _dynamicRequest = null;
             }
 
-            _load.interactable = true;
-            _show.interactable = false;
+            if (!isShown && _defaultInterstitial != null)
+            {
+                if (_defaultInterstitial.CanShowAd())
+                {
+                    SetStatus("Showing Default");
+                    _defaultInterstitial.Show();
+                    _presentingInterstitial = _defaultInterstitial;
+                }
+                _defaultInterstitial = null;
+                _defaultRequest = null;
+            }
+
+            UpdateShowButton();
         }
 
         private void OnAdImpressionRecorded()
         {
-            SetStatus("OnAdImpressionRecorded");
-        }
-
-        private void OnAdClicked()
-        {
-            SetStatus("OnAdClicked");
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() => { SetStatus("OnAdImpressionRecorded"); });
+            }
         }
 
         private void OnAdFullScreenContentOpened()
         {
-            SetStatus("OnAdFullScreenContentOpened");
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() => { SetStatus("OnAdFullScreenContentOpened"); });
+            }
         }
 
         private void OnAdFullScreenContentClosed()
         {
-            SetStatus("OnAdFullScreenContentClosed");
-            
-            if (_interstitialAd != null)
+            lock (_mainThreadQueue)
             {
-                _interstitialAd.Destroy();
-                _interstitialAd = null;
+                _mainThreadQueue.Enqueue(() =>
+                {
+                    SetStatus("OnAdFullScreenContentClosed");
+
+                    _presentingInterstitial = null;
+            
+                    // start new cycle
+                    if (_load.isOn)
+                    {
+                        StartLoading();
+                    }
+                });
             }
         }
         
         private void OnAdFullScreenContentFailed(AdError error)
         {
-            SetStatus($"OnAdFullScreenContentFailed {error}");
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() => { SetStatus($"OnAdFullScreenContentFailed {error}"); });
+            }
         }
 
         private void SetStatus(string status)
         {
-            Debug.Log(status);
+            Debug.Log($"NeftaPluginAM Interstitial {status}");
             _status.text = status;
         }
         
@@ -210,17 +346,9 @@ namespace AdDemo
             Adapter.Record(new ReceiveEvent(category) { _method = method, _name = $"receive_{category} {method} {value}", _value = value });
         }
         
-        private void SetLoadingButton(bool isLoading)
+        private void UpdateShowButton()
         {
-            _isLoading = isLoading;
-            if (_isLoading)
-            {
-                _loadText.text = "Cancel";
-            }
-            else
-            {
-                _loadText.text = "Load";
-            }
+            _show.interactable = _dynamicInterstitial != null || _defaultInterstitial != null;
         }
     }
 }

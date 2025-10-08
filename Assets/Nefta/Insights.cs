@@ -12,61 +12,6 @@ namespace Nefta
         public AdInsight _banner;
         public AdInsight _interstitial;
         public AdInsight _rewarded;
-        
-        public Insights(InsightsDto dto) {
-            if (dto == null)
-            {
-                return;
-            }
-
-            if (dto.churn != null)
-            {
-                _churn = new Churn()
-                {
-                    _d1_probability = dto.churn.d1_probability,
-                    _d3_probability = dto.churn.d3_probability,
-                    _d7_probability = dto.churn.d7_probability,
-                    _d14_probability = dto.churn.d14_probability,
-                    _d30_probability = dto.churn.d30_probability,
-                    _probability_confidence = dto.churn.probability_confidence,
-                };
-            }
-
-            if (dto.floor_price != null)
-            {
-                var banner = dto.floor_price.banner_configuration;
-                if (banner != null)
-                {
-                    _banner = new AdInsight()
-                    {
-                        _type = Adapter.AdType.Banner,
-                        _floorPrice = banner.floor_price,
-                        _adUnit = banner.ad_unit
-                    };
-                }
-                var interstitial = dto.floor_price.interstitial_configuration;
-                if (interstitial != null)
-                {
-                    _interstitial = new AdInsight()
-                    {
-                        _type = Adapter.AdType.Interstitial,
-                        _floorPrice = interstitial.floor_price,
-                        _adUnit = interstitial.ad_unit
-                    };
-                }
-
-                var rewarded = dto.floor_price.rewarded_configuration;
-                if (rewarded != null)
-                {
-                    _banner = new AdInsight()
-                    {
-                        _type = Adapter.AdType.Rewarded,
-                        _floorPrice = rewarded.floor_price,
-                        _adUnit = rewarded.ad_unit
-                    };
-                }
-            }
-        }
     }
     
     public class Churn
@@ -77,13 +22,35 @@ namespace Nefta
         public double _d14_probability;
         public double _d30_probability;
         public string _probability_confidence;
+        
+        public Churn(ChurnDto dto)
+        {
+            if (dto != null)
+            {
+                _d1_probability = dto.d1_probability;
+                _d3_probability = dto.d3_probability;
+                _d7_probability = dto.d7_probability;
+                _d14_probability = dto.d14_probability;
+                _d30_probability = dto.d30_probability;
+                _probability_confidence = dto.probability_confidence;
+            }
+        }
     }
     
     public class AdInsight
     {
+        public int _adOpportunityId;
         public Adapter.AdType _type;
         public double _floorPrice;
         public string _adUnit;
+        
+        public AdInsight(Adapter.AdType type, AdConfigurationDto dto)
+        {
+            _type = type;
+            _adOpportunityId = dto.ad_opportunity_id;
+            _floorPrice = dto.floor_price;
+            _adUnit = dto.ad_unit;
+        }
         
         public override string ToString()
         {

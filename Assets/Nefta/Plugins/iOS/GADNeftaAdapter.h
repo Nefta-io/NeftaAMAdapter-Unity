@@ -15,15 +15,22 @@ typedef NS_ENUM(NSInteger, AdType) {
     AdTypeInterstitial = 2,
     AdTypeRewarded = 3
 };
-+ (void)OnExternalMediationRequestLoadWithBanner:(GADBannerView * _Nonnull)banner usedInsight:(AdInsight * _Nullable)usedInsight;
-+ (void)OnExternalMediationRequestLoadWithInterstitial:(GADInterstitialAd * _Nonnull)interstitial usedInsight:(AdInsight * _Nullable)usedInsight;
-+ (void)OnExternalMediationRequestLoadWithRewarded:(GADRewardedAd * _Nonnull)rewarded usedInsight:(AdInsight * _Nullable)usedInsight;
-+ (void)OnExternalMediationRequestFail:(AdType)adType adUnitId:(NSString * _Nonnull)adUnitId usedInsight:(AdInsight * _Nullable)usedInsight error:(NSError * _Nullable)error;
+
++ (void) OnExternalMediationRequestWithInsight:(AdInsight * _Nonnull)insight request:(GADRequest * _Nonnull)request adUnitId:(NSString * _Nonnull)adUnitId;
++ (void) OnExternalMediationRequest:(AdType)adType request:(GADRequest * _Nonnull)request adUnitId:(NSString * _Nonnull)adUnitId;
+
++ (void) OnExternalMediationRequestLoadWithBanner:(GADBannerView * _Nonnull)banner request:(GADRequest * _Nonnull)request;
++ (void) OnExternalMediationRequestLoadWithInterstitial:(GADInterstitialAd * _Nonnull)interstitial request:(GADRequest * _Nonnull)request;
++ (void) OnExternalMediationRequestLoadWithRewarded:(GADRewardedAd * _Nonnull)rewarded request:(GADRequest * _Nonnull)request;
++ (void) OnExternalMediationRequestFail:(GADRequest * _Nonnull)request error:(NSError * _Nonnull)error;
+
 + (void)OnExternalMediationImpressionWithBanner:(GADBannerView * _Nonnull)banner adValue:(GADAdValue* _Nonnull)adValue;
 + (void)OnExternalMediationImpressionWithInterstitial:(GADInterstitialAd * _Nonnull)interstitial adValue:(GADAdValue* _Nonnull)adValue;
 + (void)OnExternalMediationImpressionWithRewarded:(GADRewardedAd * _Nonnull)rewarded adValue:(GADAdValue* _Nonnull)adValue;
 
-+ (void)OnExternalMediationImpressionAsString:(int)adType network:(NSString * _Nonnull)network data:(NSString * _Nonnull)data revenue:(double)revenue precision:(NSString * _Nonnull) precision;
++ (void)OnExternalMediationClickWithBanner:(GADBannerView * _Nonnull)banner;
++ (void)OnExternalMediationClickWithInterstitial:(GADInterstitialAd * _Nonnull)interstitial;
++ (void)OnExternalMediationClickWithRewarded:(GADRewardedAd * _Nonnull)rewarded;
 
 + (NSError *_Nonnull) NLoadToAdapterError:(NError *_Nonnull)error;
 @end

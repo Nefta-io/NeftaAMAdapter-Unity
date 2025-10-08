@@ -11,187 +11,328 @@ namespace AdDemo
 {
     public class RewardedController : MonoBehaviour
     {
-        private class State
-        {
-            public String _status;
-            public bool _canShow;
-            public bool _isDirty;
-        }
-        
 #if UNITY_IPHONE
         private const string DefaultAdUnitId = "ca-app-pub-1193175835908241/1793039068";
 #else
         private const string DefaultAdUnitId = "ca-app-pub-1193175835908241/2054545908";
 #endif
+
+        private AdRequest _dynamicRequest;
+        private AdInsight _dynamicInsight;
+        private RewardedAd _dynamicRewarded;
+        private AdRequest _defaultRequest;
+        private RewardedAd _defaultRewarded;
+        private RewardedAd _presentingRewarded;
         
         [SerializeField] private Text _title;
-        [SerializeField] private Button _load;
+        [SerializeField] private Toggle _load;
         [SerializeField] private Text _loadText;
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
-        
-        private RewardedAd _rewardedAd;
-        private string _selectedAdUnit;
-        private AdInsight _usedInsight;
-        private bool _isLoading;
 
         private static readonly Queue<Action> _mainThreadQueue = new Queue<Action>();
         
-        private void GetInsightsAndLoad()
+        private void StartLoading()
         {
-            Adapter.GetInsights(Insights.Rewarded, Load, 5);
+            if (_dynamicRequest == null)
+            {
+                _dynamicInsight = null;
+                GetInsightsAndLoad(null);   
+            }
+            if (_defaultRequest == null)
+            {
+                LoadDefault();   
+            }
         }
         
-        private void Load(Insights insights)
+        private void GetInsightsAndLoad(AdInsight previousInsight)
         {
-            _selectedAdUnit = DefaultAdUnitId;
-            _usedInsight = insights._rewarded;
-            if (_usedInsight != null) {
-                _selectedAdUnit = _usedInsight._adUnit;
-            }
-            
-            var adRequest = new AdRequest();
-            RewardedAd.Load(_selectedAdUnit, adRequest, (RewardedAd ad, LoadAdError error) =>
+            _dynamicRequest = new AdRequest();
+            Adapter.GetInsights(Insights.Rewarded, previousInsight, LoadWithInsights, 5);
+        }
+        
+        private void LoadWithInsights(Insights insights)
+        {
+            _dynamicInsight = insights._rewarded;
+            if (_dynamicInsight != null && !string.IsNullOrEmpty(_dynamicInsight._adUnit))
             {
-                if (error != null)
+                var recommendedAdUnit = _dynamicInsight._adUnit;
+                SetStatus($"Loading Dynamic {recommendedAdUnit}");
+                Adapter.OnExternalMediationRequest(_dynamicInsight, _dynamicRequest, recommendedAdUnit);
+                
+                RewardedAd.Load(recommendedAdUnit, _dynamicRequest, (RewardedAd ad, LoadAdError error) =>
                 {
-                    Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Rewarded, _usedInsight, _selectedAdUnit, error);
+                    if (error != null)
+                    {
+                        lock (_mainThreadQueue)
+                        {
+                            _mainThreadQueue.Enqueue(() =>
+                            {
+                                Adapter.OnExternalMediationRequestFailed(_dynamicRequest, error);
+                                _dynamicRequest = null;
+                                
+                                SetStatus($"Dynamic failed to load with: {error}");
+                                StartCoroutine(ReTryLoad(true));
+                            });
+                        }
+                        return;
+                    }
+
+                    if (ad == null)
+                    {
+                        _dynamicRequest = null;
+                        lock (_mainThreadQueue)
+                        {
+                            _mainThreadQueue.Enqueue(() => { SetStatus("Unexpected error: Dynamic load event fired with null ad and null error."); });
+                        }
+                        return;
+                    }
+                    
+                    _dynamicRewarded = ad;
+                    
+                    ad.OnAdPaid += OnAdPaid;
+                    ad.OnAdImpressionRecorded += OnAdImpressionRecorded;
+                    ad.OnAdClicked += OnAdClicked;
+                    ad.OnAdFullScreenContentOpened += OnAdFullScreenContentOpened;
+                    ad.OnAdFullScreenContentClosed += OnAdFullScreenContentClosed;
+                    ad.OnAdFullScreenContentFailed += OnAdFullScreenContentFailed;
 
                     lock (_mainThreadQueue)
                     {
                         _mainThreadQueue.Enqueue(() =>
                         {
-                            SetStatus("Rewarded ad failed to load an ad with error : " + error);
-                            StartCoroutine(ReTryLoad());
+                            Adapter.OnExternalMediationRequestLoaded(ad, _dynamicRequest);
+                            
+                            SetStatus($"Dynamic {recommendedAdUnit} loaded with response: {ad}");
+
+                            UpdateShowButton();
                         });
                     }
-                    return;
-                }
-                if (ad == null)
+                });
+            }
+            else
+            {
+                _dynamicRequest = null;
+            }
+        }
+
+        private void LoadDefault()
+        {
+            SetStatus($"Loading Default: ${DefaultAdUnitId}");
+            
+            _defaultRequest = new AdRequest();
+            Adapter.OnExternalMediationRequest(Adapter.AdType.Rewarded, _defaultRequest, DefaultAdUnitId);
+            RewardedAd.Load(DefaultAdUnitId, _defaultRequest, (RewardedAd ad, LoadAdError error) =>
+            {
+                if (error != null)
                 {
+                    _defaultRequest = null;
                     lock (_mainThreadQueue)
                     {
                         _mainThreadQueue.Enqueue(() =>
                         {
-                            SetStatus("Unexpected error: Rewarded load event fired with null ad and null error.");
+                            Adapter.OnExternalMediationRequestFailed(_defaultRequest, error);
+                            
+                            SetStatus($"Default failed to load with: {error}");
+                            StartCoroutine(ReTryLoad(false));
                         });
                     }
                     return;
                 }
-                
-                Adapter.OnExternalMediationRequestLoaded(_usedInsight, _selectedAdUnit, ad);
-                
-                lock (_mainThreadQueue)
+
+                if (ad == null)
                 {
-                    _mainThreadQueue.Enqueue(() =>
+                    _defaultRequest = null;
+                    lock (_mainThreadQueue)
                     {
-                        SetStatus($"Rewarded ad loaded with response {_selectedAdUnit}");
-                        SetLoadingButton(false);
-                        _load.interactable = false;
-                        _show.interactable = true;
-                    });
+                        _mainThreadQueue.Enqueue(() => { SetStatus("Unexpected error: Default load event fired with null ad and null error."); });
+                    }
+                    return;
                 }
-                _rewardedAd = ad;
+                
+                _defaultRewarded = ad;
+                
                 ad.OnAdPaid += OnAdPaid;
                 ad.OnAdImpressionRecorded += OnAdImpressionRecorded;
                 ad.OnAdClicked += OnAdClicked;
                 ad.OnAdFullScreenContentOpened += OnAdFullScreenContentOpened;
                 ad.OnAdFullScreenContentClosed += OnAdFullScreenContentClosed;
                 ad.OnAdFullScreenContentFailed += OnAdFullScreenContentFailed;
+                
+                lock (_mainThreadQueue)
+                {
+                    _mainThreadQueue.Enqueue(() =>
+                    {
+                        Adapter.OnExternalMediationRequestLoaded(_defaultRewarded, _defaultRequest);
+                        
+                        SetStatus($"Default Rewarded {DefaultAdUnitId} Loaded {_defaultRewarded}");
+
+                        UpdateShowButton();
+                    });
+                }
             });
         }
         
         private void OnAdPaid(AdValue adValue)
         {
-            Adapter.OnExternalMediationImpression(_selectedAdUnit, _rewardedAd, adValue);
-            
             lock (_mainThreadQueue)
             {
-                _mainThreadQueue.Enqueue(() => { SetStatus($"OnAdPaid {adValue.Value}"); });
+                _mainThreadQueue.Enqueue(() =>
+                {
+                    Adapter.OnExternalMediationImpression(_presentingRewarded, adValue);
+                    
+                    SetStatus($"OnAdPaid {adValue.Value}");
+                });
             }
         }
         
-        private IEnumerator ReTryLoad()
+        private void OnAdClicked()
+        {
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() =>
+                {
+                    Adapter.OnExternalMediationClick(_presentingRewarded);
+                    
+                    SetStatus("OnAdClicked");
+                });
+            }
+        }
+        
+        private IEnumerator ReTryLoad(bool isDynamic)
         {
             yield return new WaitForSeconds(5f);
             
-            if (_isLoading)
+            if (_load.isOn)
             {
-                GetInsightsAndLoad();   
+                if (isDynamic)
+                {
+                    if (_dynamicRequest == null)
+                    {
+                        GetInsightsAndLoad(_dynamicInsight);       
+                    }
+                }
+                else
+                {
+                    if (_defaultRequest == null)
+                    {
+                        LoadDefault();   
+                    }
+                }
             }
         }
         
         public void Init()
         {
-            _load.onClick.AddListener(OnLoadClick);
+            _load.onValueChanged.AddListener(OnLoadChanged);
             _show.onClick.AddListener(OnShowClick);
             _show.interactable = false;
 
             SetStatus("Rewarded status");
         }
         
-        private void OnLoadClick()
+        private void OnLoadChanged(bool isOn)
         {
-            if (_isLoading)
+            if (isOn)
             {
-                SetLoadingButton(false);
+                StartLoading();   
             }
             else
             {
-                SetStatus("GetInsightsAndLoad...");
-                GetInsightsAndLoad();
-                SetLoadingButton(true);
-                AddDemoGameEventExample();
+                _dynamicInsight = null;
             }
+            
+            AddDemoGameEventExample();
         }
         
         private void OnShowClick()
         {
-            if (_rewardedAd != null && _rewardedAd.CanShowAd())
+            var isShown = false;
+            if (_dynamicRewarded != null)
             {
-                SetStatus("Showing rewarded");
-                _rewardedAd.Show((Reward reward) =>
+                if (_dynamicRewarded.CanShowAd())
                 {
-                    SetStatus($"Rewarded ad granted a reward: {reward.Amount} {reward.Type}");
-                });
+                    isShown = true;
+                    SetStatus("Showing Dynamic");
+                    _dynamicRewarded.Show((Reward reward) =>
+                    {
+                        lock (_mainThreadQueue)
+                        {
+                            _mainThreadQueue.Enqueue(() => { SetStatus($"Dynamic Ad granted a reward: {reward.Amount} {reward.Type}"); });
+                        }
+                    });
+                    _presentingRewarded = _dynamicRewarded;
+                }
+                _dynamicRewarded = null;
+                _dynamicRequest = null;
             }
-            else
+            if (!isShown && _defaultRewarded != null)
             {
-                SetStatus("Rewarded ad is not ready yet.");
+                if (_defaultRewarded.CanShowAd())
+                {
+                    SetStatus("Showing Default");
+                    _defaultRewarded.Show((Reward reward) =>
+                    {
+                        lock (_mainThreadQueue)
+                        {
+                            _mainThreadQueue.Enqueue(() => { SetStatus($"Default Ad granted a reward: {reward.Amount} {reward.Type}"); });
+                        }
+                    });
+                    _presentingRewarded = _defaultRewarded;
+                }
+                _defaultRewarded = null;
+                _defaultRequest = null;
             }
-            
-            _load.interactable = true;
-            _show.interactable = false;
+
+            UpdateShowButton();
         }
-        
+
         private void OnAdImpressionRecorded()
         {
-            SetStatus("OnAdImpressionRecorded");
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() => { SetStatus("OnAdImpressionRecorded"); });
+            }
         }
-        
-        private void OnAdClicked()
-        {
-            SetStatus("OnAdClicked");
-        }
-        
+
         private void OnAdFullScreenContentOpened()
         {
-            SetStatus("OnAdFullScreenContentOpened");
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() => { SetStatus("OnAdFullScreenContentOpened"); });
+            }
         }
         
         private void OnAdFullScreenContentClosed()
         {
-            SetStatus("OnAdFullScreenContentClosed");
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() =>
+                {
+                    SetStatus("OnAdFullScreenContentClosed");
+
+                    _presentingRewarded = null;
+
+                    // start new cycle
+                    if (_load.isOn)
+                    {
+                        StartLoading();
+                    }
+                });
+            }
         }
-        
+
         private void OnAdFullScreenContentFailed(AdError error)
         {
-            SetStatus($"OnAdFullScreenContentFailed {error}");
+            lock (_mainThreadQueue)
+            {
+                _mainThreadQueue.Enqueue(() => { SetStatus($"OnAdFullScreenContentFailed {error}"); });
+            }
         }
-        
+
         private void SetStatus(string status)
         {
-            Debug.Log(status);
+            Debug.Log($"NeftaPluginAM Rewarded {status}");
             _status.text = status;
         }
 
@@ -214,17 +355,9 @@ namespace AdDemo
             Adapter.Record(new SpendEvent(category) { _method = method, _name = $"spend_{category} {method} {value}", _value = value });
         }
         
-        private void SetLoadingButton(bool isLoading)
+        private void UpdateShowButton()
         {
-            _isLoading = isLoading;
-            if (_isLoading)
-            {
-                _loadText.text = "Cancel";
-            }
-            else
-            {
-                _loadText.text = "Load";
-            }
+            _show.interactable = _dynamicRewarded != null || _defaultRewarded != null;
         }
     }
 }

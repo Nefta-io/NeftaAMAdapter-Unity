@@ -31,6 +31,7 @@ namespace Nefta
     [Serializable]
     public class AdConfigurationDto
     {
+        public int ad_opportunity_id;
         public double floor_price;
         public string ad_unit;
     }
