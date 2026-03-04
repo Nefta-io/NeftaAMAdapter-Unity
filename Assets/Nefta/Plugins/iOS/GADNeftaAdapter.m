@@ -12,15 +12,23 @@ NSString * const _mediationProvider = @"google-admob";
 }
 
 + (void) OnExternalMediationRequestWithInsight:(AdInsight * _Nonnull)insight request:(GADRequest * _Nonnull)request adUnitId:(NSString *)adUnitId {
+    [GADNeftaAdapter OnExternalMediationRequestWithInsight: insight request: request adUnitId: adUnitId customBidFloor: insight._floorPrice];
+}
+
++ (void) OnExternalMediationRequestWithInsight:(AdInsight * _Nonnull)insight request:(GADRequest * _Nonnull)request adUnitId:(NSString *)adUnitId customBidFloor:(double)customBidFloor {
     NSString *id0 = [NSString stringWithFormat:@"%lu", (unsigned long)[request hash]];
     int adType = (int) insight._type;
-    int adOpportunityId = (int)insight._adOpportunityId;
-    [NeftaPlugin OnExternalMediationRequest: _mediationProvider adType: adType id: id0 requestedAdUnitId: adUnitId requestedFloorPrice: -1 adOpportunityId: adOpportunityId];
+    int requestId = (int)insight._requestId;
+    [NeftaPlugin OnExternalMediationRequest: _mediationProvider adType: adType id: id0 requestedAdUnitId: adUnitId requestedFloorPrice: customBidFloor requestId:requestId];
 }
 
 + (void) OnExternalMediationRequest:(AdType)adType request:(GADRequest * _Nonnull)request adUnitId:(NSString *)adUnitId {
+    [GADNeftaAdapter OnExternalMediationRequest: adType request: request adUnitId: adUnitId customBidFloor: -1];
+}
+
++ (void) OnExternalMediationRequest:(AdType)adType request:(GADRequest * _Nonnull)request adUnitId:(NSString *)adUnitId customBidFloor:(double)customBidFloor {
     NSString *id0 = [NSString stringWithFormat:@"%lu", (unsigned long)[request hash]];
-    [NeftaPlugin OnExternalMediationRequest: _mediationProvider adType: (int)adType id: id0 requestedAdUnitId: adUnitId requestedFloorPrice: -1 adOpportunityId: -1];
+    [NeftaPlugin OnExternalMediationRequest: _mediationProvider adType: (int)adType id: id0 requestedAdUnitId: adUnitId requestedFloorPrice: customBidFloor requestId: -1];
 }
 
 + (void) OnExternalMediationRequestLoadWithBanner:(GADBannerView * _Nonnull)banner request:(GADRequest * _Nonnull)request {
@@ -39,7 +47,7 @@ NSString * const _mediationProvider = @"google-admob";
     [GADNeftaAdapter OnExternalMediationResponse: id0 id2: id2];
 }
 + (void) OnExternalMediationResponse:(NSString *)id0 id2:(NSString * _Nonnull)id2 {
-    [NeftaPlugin OnExternalMediationResponse: _mediationProvider id: id0 id2: id2 revenue: -1 precision: nil status: 1 providerStatus: nil networkStatus: nil];
+    [NeftaPlugin OnExternalMediationResponse: _mediationProvider id: id0 id2: id2 revenue: -1 precision: nil status: 1 providerStatus: nil networkStatus: nil baseObject: nil];
 }
 
 + (void) OnExternalMediationRequestFail:(GADRequest * _Nonnull)request error:(NSError *)error {
@@ -61,7 +69,7 @@ NSString * const _mediationProvider = @"google-admob";
     }
     NSString *id0 = [NSString stringWithFormat:@"%lu", (unsigned long)[request hash]];
     
-    [NeftaPlugin OnExternalMediationResponse: _mediationProvider id: id0 id2: nil revenue: -1 precision: nil status: status providerStatus: providerStatus networkStatus: networkStatus];
+    [NeftaPlugin OnExternalMediationResponse: _mediationProvider id: id0 id2: nil revenue: -1 precision: nil status: status providerStatus: providerStatus networkStatus: networkStatus baseObject: nil];
 }
 
 + (void) OnExternalMediationImpressionWithBanner:(GADBannerView * _Nonnull)banner adValue:(GADAdValue*)adValue {
@@ -151,7 +159,7 @@ static NeftaPlugin *_plugin;
 }
 
 + (GADVersionNumber)adapterVersion {
-    GADVersionNumber version = {4, 4, 2};
+    GADVersionNumber version = {4, 4, 6};
     return version;
 }
 
@@ -162,7 +170,8 @@ static NeftaPlugin *_plugin;
         return;
     }
 
-    _plugin = NeftaPlugin._instance;
+    NSString* appId = configuration.credentials[0].settings[@"parameter"];
+    _plugin = [NeftaPlugin InitWithAppId: appId integration: @"native-google-admob"];
     dispatch_async(dispatch_get_main_queue(), ^{
         if (_plugin == nil) {
             completionHandler([NSError errorWithDomain: _errorDomain code: NeftaAdapterErrorCodeInvalidServerParameters userInfo: nil]);
