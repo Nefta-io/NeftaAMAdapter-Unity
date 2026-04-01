@@ -5,7 +5,7 @@ using Nefta.Editor;
 
 namespace Nefta
 {
-    public class NeftaListener : AndroidJavaProxy, IAdapterListener
+    public class NeftaListener : AndroidJavaProxy, IPluginListener
     {
         public NeftaListener() : base("com.nefta.sdk.AdapterCallback")
         {
@@ -19,6 +19,11 @@ namespace Nefta
         public void IOnInsights(int id, int adapterResponseType, string insights)
         {
             Adapter.IOnInsights(id, adapterResponseType, insights);
+        }
+        
+        public void IOnNewSessionCallback()
+        {
+            Adapter.IOnNewSessionCallback();
         }
     }
 }

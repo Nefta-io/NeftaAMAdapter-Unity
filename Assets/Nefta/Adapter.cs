@@ -27,33 +27,24 @@ namespace Nefta
             Rewarded = 3
         }
         
-        public enum ContentRating
-        {
-            Unspecified = 0,
-            General = 1,
-            ParentalGuidance = 2,
-            Teen = 3,
-            MatureAudience = 4
-        }
-        
         [Serializable]
         internal class InitConfigurationDto
         {
             public bool skipOptimization;
+            public string nuid;
             public string providerAdUnits;
             public int disabledFeatures;
+            public float[] delays;
         }
         
         [Flags]
         private enum Feature {
             Insights = 1,
-            Exchange = 1 << 1,
-            GameEvents = 1 << 2,
-            SessionEvents = 1 << 3,
-            ExternalMediationResponse = 1 << 4,
-            ExternalMediationRequest = 1 << 5,
-            ExternalMediationImpression = 1 << 6,
-            ExternalMediationClick = 1 << 7,
+            GameEvents = 1 << 1,
+            ExternalMediationResponse = 1 << 2,
+            ExternalMediationRequest = 1 << 3,
+            ExternalMediationImpression = 1 << 4,
+            ExternalMediationClick = 1 << 5
         }
 
         public struct ExtParams
@@ -98,6 +89,7 @@ namespace Nefta
 #elif UNITY_IOS
         private delegate void OnReadyDelegate(string initConfig);
         private delegate void OnInsightsDelegate(int requestId, int adapterResponseType, string adapterResponse);
+        private delegate void OnNewSessionCallbackDelegate();
 
         [MonoPInvokeCallback(typeof(OnReadyDelegate))] 
         private static void OnReadyBridge(string initConfig) {
@@ -109,6 +101,11 @@ namespace Nefta
             IOnInsights(requestId, adapterResponseType, adapterResponse);
         }
 
+        [MonoPInvokeCallback(typeof(OnNewSessionCallbackDelegate))] 
+        private static void OnNewSessionCallbackDelegateBridge() {
+            IOnNewSessionCallback();
+        }
+
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_EnableLogging(bool enable);
 
@@ -116,7 +113,7 @@ namespace Nefta
         private static extern void NeftaPlugin_SetExtraParameter(string key, string value);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_Init(string appId, OnReadyDelegate onReady, OnInsightsDelegate onInsights);
+        private static extern void NeftaPlugin_Init(string appId, string clientId, OnReadyDelegate onReady, OnInsightsDelegate onInsights);
 
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_Record(int type, int category, int subCategory, string nameValue, long value, string customPayload);
@@ -132,12 +129,9 @@ namespace Nefta
 
         [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(bool present);
-
-        [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_SetContentRating(string rating);
         
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId, int timeoutInSeconds);
+        private static extern void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId);
         
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_SetOverride(string root);
@@ -159,8 +153,11 @@ namespace Nefta
         private static List<InsightRequest> _insightRequests;
         private static int _insightId;
         private static Feature _disabledFeatures;
-        private static SynchronizationContext _initContext;
+        private static List<float> _delays;
+
+        private static SynchronizationContext _mainContext;
         private static Action<InitConfiguration> _onReady;
+        private static List<Action> _newSessionCallbacks;
 
         public static void EnableLogging(bool enable)
         {
@@ -173,22 +170,34 @@ namespace Nefta
 #endif
         }
 
-        public static void Init(string appId, Action<InitConfiguration> onReady)
+        public static void InitWithAppId(string appId, Action<InitConfiguration> onReady)
         {
-            _initContext = SynchronizationContext.Current;
+            Init(appId, null, onReady);
+        }
+
+        public static void InitWithClientId(string clientId, Action<InitConfiguration> onReady)
+        {
+            Init(null, clientId, onReady);
+        }
+        
+        private static void Init(string appId, string clientId, Action<InitConfiguration> onReady)
+        {
+            _mainContext = SynchronizationContext.Current;
             _onReady = onReady;
+            _newSessionCallbacks = new List<Action>();
 #if UNITY_EDITOR
-            _plugin = NeftaPlugin.Init(appId, false);
-            _plugin._adapterListener = new NeftaAdapterListener();
+            _plugin = NeftaPlugin.Init(appId, clientId, "unity-google-admob", "/");
+            _plugin.Listener = new NeftaListener();
 #elif UNITY_IOS
-            NeftaPlugin_Init(appId, OnReadyBridge, OnInsightsBridge);
+            NeftaPlugin_Init(appId, clientId, OnReadyBridge, OnInsightsBridge);
 #elif UNITY_ANDROID
             AndroidJavaClass unityClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             var unityActivity = unityClass.GetStatic<AndroidJavaObject>("currentActivity");
 
-            _plugin = NeftaPluginClass.CallStatic<AndroidJavaObject>("Init", unityActivity, appId, new NeftaAdapterListener(), "unity-google-admob");
+            _plugin = NeftaPluginClass.CallStatic<AndroidJavaObject>("UnityInit", unityActivity, appId, clientId, new NeftaListener(), "unity-google-admob", "/");
 #endif
             _insightRequests = new List<InsightRequest>();
+            _delays = new List<float>() { 2 };
         }
 
         public static void Record(GameEvent gameEvent)
@@ -236,7 +245,7 @@ namespace Nefta
         {
             OnExternalMediationRequest(adType, request, adUnitId, requestedFloorPrice, -1);
         }
-
+        
         private static void OnExternalMediationRequest(AdType adType, AdRequest request, string adUnitId, double requestedFloorPrice, int requestId)
         {
             if ((_disabledFeatures & Feature.ExternalMediationRequest) != 0)
@@ -279,7 +288,7 @@ namespace Nefta
         {
             var id0 = request.GetHashCode().ToString();
             var id2 = banner.GetHashCode().ToString();
-            OnExternalMediationResponse(id0, id2, -1, null, 1, null, null);
+            OnExternalMediationResponse(id0, id2, -1, null, 1, null, banner.GetResponseInfo());
         }
         
         /// <summary>
@@ -291,7 +300,7 @@ namespace Nefta
         {
             var id0 = request.GetHashCode().ToString();
             var id2 = interstitial.GetHashCode().ToString();
-            OnExternalMediationResponse(id0, id2, -1, null, 1, null, null);
+            OnExternalMediationResponse(id0, id2, -1, null, 1, null, interstitial.GetResponseInfo());
         }
         
         /// <summary>
@@ -303,7 +312,7 @@ namespace Nefta
         {
             var id0 = request.GetHashCode().ToString();
             var id2 = rewarded.GetHashCode().ToString();
-            OnExternalMediationResponse(id0, id2, -1, null, 1, null, null);
+            OnExternalMediationResponse(id0, id2, -1, null, 1, null, rewarded.GetResponseInfo());
         }
 
         /// <summary>
@@ -323,29 +332,8 @@ namespace Nefta
             {
                 status = 2;
             }
-
             var providerStatus = errorCode.ToString(CultureInfo.CurrentCulture);
-            String networkStatus = null;
-            try
-            {
-                var responseInfo = error.GetResponseInfo();
-                if (responseInfo != null)
-                {
-                    var adapterResponse = responseInfo.GetLoadedAdapterResponseInfo();
-                    if (adapterResponse != null)
-                    {
-                        var adapterError = adapterResponse.AdError;
-                        if (adapterError != null)
-                        {
-                            networkStatus = adapterError.GetCode().ToString(CultureInfo.InvariantCulture);
-                        }
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                // ignored
-            }
+            
             var id = request.GetHashCode().ToString();
             for (var i = _amRequests.Count - 1; i >= 0; i--)
             {
@@ -355,10 +343,10 @@ namespace Nefta
                     break;
                 }
             }
-            OnExternalMediationResponse(id, null, -1, null, status, providerStatus, networkStatus);
+            OnExternalMediationResponse(id, null, -1, null, status, providerStatus, error.GetResponseInfo());
         }
 
-        private static void OnExternalMediationResponse(string id, string id2, double revenue, string precision, int status, string providerStatus, string networkStatus)
+        private static void OnExternalMediationResponse(string id, string id2, double revenue, string precision, int status, string providerStatus, ResponseInfo responseInfo)
         {
             if ((_disabledFeatures & Feature.ExternalMediationResponse) != 0)
             {
@@ -376,12 +364,18 @@ namespace Nefta
                     }
                 }
             }
+            
+            var data = new StringBuilder();
+            data.Append('{');
+            var networkStatus = TryParseResponseInfo(data, responseInfo);
+            data.Append('}');
+            
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, null);
+            _plugin.OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, data.ToString());
 #elif UNITY_IOS
-            NeftaPlugin_OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, null);
+            NeftaPlugin_OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, data.ToString());
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationResponseAsString", _mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, null);
+            _plugin.CallStatic("OnExternalMediationResponseAsString", _mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, data.ToString());
 #endif
         }
 
@@ -454,32 +448,7 @@ namespace Nefta
                 sb.Append(",\"precision\":");
                 sb.Append((int)adValue.Precision);
             }
-            
-            if (responseInfo != null)
-            {
-                var placement = responseInfo.GetResponseExtras()["mediation_group_name"];
-                if (!string.IsNullOrEmpty(placement))
-                {
-                    sb.Append(",\"placement\":\"");
-                    sb.Append(JavaScriptStringEncode(placement));
-                    sb.Append("\"");
-                }
-                var others = responseInfo.GetAdapterResponses();
-                if (others != null && others.Count > 0)
-                {
-                    sb.Append(",\"waterfall\":[\"");
-                    for (var i = 0; i < others.Count; i++)
-                    {
-                        if (i != 0)
-                        {
-                            sb.Append("\",\"");
-                        }
-                        sb.Append(JavaScriptStringEncode(others[i].AdSourceInstanceName));
-                    }
-                    sb.Append("\"]");
-                }
-            }
-
+            TryParseResponseInfo(sb, responseInfo);
             sb.Append('}');
             var data = sb.ToString();
 
@@ -492,7 +461,79 @@ namespace Nefta
 #endif
         }
 
-        public static void GetInsights(int insights, AdInsight previousInsight, OnInsightsCallback callback, int timeoutInSeconds=0)
+        private static string TryParseResponseInfo(StringBuilder sb, ResponseInfo responseInfo)
+        {
+            if (responseInfo != null)
+            {
+                var extras = responseInfo.GetResponseExtras();
+                if (extras != null && extras.TryGetValue("mediation_group_name", out var placement))
+                {
+                    if (!string.IsNullOrEmpty(placement))
+                    {
+                        if (sb.Length > 1)
+                        {
+                            sb.Append(",");
+                        }
+                        sb.Append("\"placement\":\"");
+                        sb.Append(JavaScriptStringEncode(placement));
+                        sb.Append("\"");
+                    }
+                }
+
+                var others = responseInfo.GetAdapterResponses();
+                if (others != null && others.Count > 0)
+                {
+                    if (sb.Length > 1)
+                    {
+                        sb.Append(",");
+                    }
+                    sb.Append("\"waterfall\":[\"");
+                    for (var i = 0; i < others.Count; i++)
+                    {
+                        if (i != 0)
+                        {
+                            sb.Append("\",\"");
+                        }
+                        sb.Append(JavaScriptStringEncode(others[i].AdSourceInstanceName));
+                    }
+                    sb.Append("\"]");
+                }
+                var loadedAdapter = responseInfo.GetLoadedAdapterResponseInfo();
+                if (loadedAdapter != null)
+                {
+                    var networkName = loadedAdapter.AdSourceName;
+                    if (networkName != null)
+                    {
+                        if (sb.Length > 1)
+                        {
+                            sb.Append(",");
+                        }
+                        sb.Append("\"network_name\":\"");
+                        sb.Append(JavaScriptStringEncode(networkName));
+                        sb.Append('"');
+                    }
+
+                    var adapterError = loadedAdapter.AdError;
+                    if (adapterError != null)
+                    {
+                        return adapterError.GetCode().ToString(CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+            return null;
+        }
+        
+        public static void AddNewSessionCallback(Action newSessionCallback)
+        {
+            _newSessionCallbacks.Add(newSessionCallback);
+        }
+
+        public static void RemoveNewSessionCallback(Action newSessionCallback)
+        {
+            _newSessionCallbacks.Remove(newSessionCallback);
+        }
+
+        public static void GetInsights(int insights, AdInsight previousInsight, OnInsightsCallback callback)
         {
             var id = 0;
             var previousRequestId = -1;
@@ -509,12 +550,30 @@ namespace Nefta
             }
             
 #if UNITY_EDITOR
-            _plugin.GetInsights(id, insights, previousRequestId, timeoutInSeconds);
+            _plugin.GetInsights(id, insights, previousRequestId);
 #elif UNITY_IOS
-            NeftaPlugin_GetInsights(id, insights, previousRequestId, timeoutInSeconds);
+            NeftaPlugin_GetInsights(id, insights, previousRequestId);
 #elif UNITY_ANDROID
-            _plugin.Call("GetInsightsBridge", id, insights, previousRequestId, timeoutInSeconds);
+            _plugin.Call("GetInsightsBridge", id, insights, previousRequestId);
 #endif
+        }
+        
+        public static float GetRetryDelayInSeconds(AdInsight insight)
+        {
+            var consecutiveFails = 1;
+            if (insight != null) {
+                if (insight._delay > 0) {
+                    return insight._delay;
+                }
+                consecutiveFails = insight._auctionId;
+            }
+            var delayIndex = consecutiveFails - 1;
+            if (delayIndex < 0) {
+                delayIndex = 0;
+            } else if (delayIndex >= _delays.Count) {
+                delayIndex = _delays.Count -1;
+            }
+            return _delays[delayIndex];
         }
         
         public static string GetNuid(bool present)
@@ -541,33 +600,6 @@ namespace Nefta
 #endif
         }
         
-        public static void SetContentRating(ContentRating rating)
-        {
-            var r = "";
-            switch (rating)
-            {
-                case ContentRating.General:
-                    r = "G";
-                    break;
-                case ContentRating.ParentalGuidance:
-                    r = "PG";
-                    break;
-                case ContentRating.Teen:
-                    r = "T";
-                    break;
-                case ContentRating.MatureAudience:
-                    r = "MA";
-                    break;
-            }
-#if UNITY_EDITOR
-            _plugin.SetContentRating(r);
-#elif UNITY_IOS
-            NeftaPlugin_SetContentRating(r);
-#elif UNITY_ANDROID
-            _plugin.Call("SetContentRating", r);
-#endif
-        }
-        
         public static void SetOverride(string root) {
 #if UNITY_EDITOR
             NeftaPlugin.SetOverride(root);
@@ -580,71 +612,58 @@ namespace Nefta
         
         internal static void IOnReady(string initConfig)
         {
-            var initDto = JsonUtility.FromJson<InitConfigurationDto>(initConfig);
-            var initConfiguration = new InitConfiguration(initDto.skipOptimization, initDto.providerAdUnits);
-            _disabledFeatures = (Feature)initDto.disabledFeatures;
-            if (_onReady != null)
+            _mainContext.Post(_ =>
             {
-                _initContext.Post(_ => { _onReady.Invoke(initConfiguration); }, null);
-                _initContext = null;
-            }
+                var initDto = JsonUtility.FromJson<InitConfigurationDto>(initConfig);
+                if (initDto == null)
+                {
+                    initDto = new InitConfigurationDto();
+                }
+                _disabledFeatures = (Feature)initDto.disabledFeatures;
+                _delays.Clear();
+                if (initDto.delays != null)
+                {
+                    foreach (var delay in initDto.delays)
+                    {
+                        _delays.Add(delay);
+                    }
+                }
+                if (_delays.Count == 0)
+                {
+                    _delays.Add(2);
+                }
+
+                var initConfiguration = new InitConfiguration(initDto.skipOptimization, initDto.nuid, initDto.providerAdUnits);
+                if (_onReady != null)
+                {
+                    _onReady.Invoke(initConfiguration);
+                }
+            }, null);
         }
         
         internal static void IOnInsights(int id, int adapterResponseType, string adapterResponse)
         {
-            var insights = new Insights();
-            if (adapterResponseType == Insights.Churn)
+            lock (_insightRequests)
             {
-                var churn = JsonUtility.FromJson<ChurnDto>(adapterResponse);
-                if (churn != null)
+                for (var i = _insightRequests.Count - 1; i >= 0; i--)
                 {
-                    insights._churn = new Churn(churn);   
-                }
-            }
-            else if (adapterResponseType == Insights.Banner)
-            {
-                var banner = JsonUtility.FromJson<AdConfigurationDto>(adapterResponse);
-                if (banner != null)
-                {
-                    insights._banner = new AdInsight(AdType.Banner, banner);
-                }
-            }
-            else if (adapterResponseType == Insights.Interstitial)
-            {
-                var interstitial = JsonUtility.FromJson<AdConfigurationDto>(adapterResponse);
-                if (interstitial != null)
-                {
-                    insights._interstitial = new AdInsight(AdType.Interstitial, interstitial);   
-                }
-            }
-            else if (adapterResponseType == Insights.Rewarded)
-            {
-                var rewarded = JsonUtility.FromJson<AdConfigurationDto>(adapterResponse);
-                if (rewarded != null)
-                {
-                    insights._rewarded = new AdInsight(AdType.Rewarded, rewarded);   
-                }
-            }
-            
-            try
-            {
-                lock (_insightRequests)
-                {
-                    for (var i = _insightRequests.Count - 1; i >= 0; i--)
+                    var insightRequest = _insightRequests[i];
+                    if (insightRequest._id == id)
                     {
-                        var insightRequest = _insightRequests[i];
-                        if (insightRequest._id == id)
-                        {
-                            insightRequest._returnContext.Post(_ => insightRequest._callback(insights), null);
-                            _insightRequests.RemoveAt(i);
-                            break;
-                        }
+                        var insights = new Insights(adapterResponseType, adapterResponse);
+                        insightRequest._returnContext.Post(_ => insightRequest._callback(insights), null);
+                        _insightRequests.RemoveAt(i);
+                        break;
                     }
                 }
             }
-            catch (Exception)
+        }
+        
+        internal static void IOnNewSessionCallback()
+        {
+            foreach (var newSessionCallback in _newSessionCallbacks)
             {
-                // ignored
+                newSessionCallback.Invoke();
             }
         }
         

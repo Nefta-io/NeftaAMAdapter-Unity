@@ -36,5 +36,6 @@ namespace Nefta
         public int auction_id;
         public double floor_price;
         public string ad_unit;
+        public float delay;
     }
 }

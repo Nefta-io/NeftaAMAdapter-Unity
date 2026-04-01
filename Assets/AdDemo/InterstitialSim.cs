@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Threading.Tasks;
 using GoogleMobileAds.Api;
 using GoogleMobileAds.Common;
@@ -175,7 +174,7 @@ namespace AdDemo
             
             private async Task RetryLoadWithDelay()
             {
-                await Task.Delay(5000);
+                await Task.Delay((int)(Adapter.GetRetryDelayInSeconds(Insight) * 1000));
 #if UNITY_EDITOR
                 if (!Application.isPlaying)
                 {
@@ -277,7 +276,7 @@ namespace AdDemo
                     };
                     
                     Adapter.OnExternalMediationRequest(insight, track.Request, track.AdUnitId);
-
+                    
                     SetStatus($"Loading {track.AdUnitId} as Optimized with {track.FloorPrice}");
                     SInterstitialAd.Load(track.AdUnitId, track.Request, track.OnLoadCallback);
                 }
@@ -285,7 +284,7 @@ namespace AdDemo
                 {
                     track.RestartAfterFailedLoad();
                 }
-            }, 5);
+            });
         }
 
         private void LoadDefault(Track track)

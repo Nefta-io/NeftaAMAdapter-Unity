@@ -7,11 +7,13 @@ namespace Nefta
     public class InitConfiguration
     {
         public bool _skipOptimization;
+        public string _nuid;
         public Dictionary<string, string[]> _providerAdUnits;
 
-        public InitConfiguration(bool skipOptimization, string providerAdUnits)
+        public InitConfiguration(bool skipOptimization, string nuid, string providerAdUnits)
         {
             _skipOptimization = skipOptimization;
+            _nuid = nuid;
             _providerAdUnits = new Dictionary<string, string[]>();
             StringBuilder sb = new StringBuilder();
             String provider = null;

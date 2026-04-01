@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 0fde5160d0f1d4efc8c56ce49cba9f30
+guid: 8612ab26eea2b4b0fb29a2d67e3f1c15
 PluginImporter:
   externalObjects: {}
   serializedVersion: 2
@@ -12,17 +12,25 @@ PluginImporter:
   validateReferences: 1
   platformData:
   - first:
+<<<<<<< HEAD:Assets/Nefta/Plugins/Android/NeftaAMAdapter-release.aar.meta
+=======
       : Any
     second:
       enabled: 0
       settings:
-        Exclude Android: 1
+        Exclude Android: 0
         Exclude Editor: 1
         Exclude Linux64: 1
         Exclude OSXUniversal: 1
         Exclude Win: 1
         Exclude Win64: 1
-        Exclude iOS: 0
+        Exclude iOS: 1
+  - first:
+>>>>>>> dev:Assets/Plugins/Android/NetworkConfig-release.aar.meta
+      Android: Android
+    second:
+      enabled: 1
+      settings: {}
   - first:
       Any: 
     second:
@@ -34,40 +42,6 @@ PluginImporter:
       enabled: 0
       settings:
         DefaultValueInitialized: true
-  - first:
-      Standalone: Linux64
-    second:
-      enabled: 0
-      settings:
-        CPU: None
-  - first:
-      Standalone: OSXUniversal
-    second:
-      enabled: 0
-      settings:
-        CPU: None
-  - first:
-      Standalone: Win
-    second:
-      enabled: 0
-      settings:
-        CPU: None
-  - first:
-      Standalone: Win64
-    second:
-      enabled: 0
-      settings:
-        CPU: None
-  - first:
-      iPhone: iOS
-    second:
-      enabled: 1
-      settings: {}
-  - first:
-      tvOS: tvOS
-    second:
-      enabled: 1
-      settings: {}
   userData: 
   assetBundleName: 
   assetBundleVariant: 

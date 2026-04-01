@@ -12,6 +12,7 @@ namespace AdDemo
 #else // UNITY_ANDROID
         private const string _neftaAppId = "5734113336098816";
 #endif
+        
         [SerializeField] private Text _title;
         
         private bool _isSimulator;
@@ -33,11 +34,9 @@ namespace AdDemo
             }
             
             Adapter.EnableLogging(true);
-            Adapter.SetExtraParameter(Adapter.ExtParams.TestGroup, "split-unity-am");
-            Adapter.Init(_neftaAppId, (configuration =>
-            {
-                Debug.Log($"Should skip Nefta optimization: {configuration._skipOptimization}");
-            }));
+            Adapter.InitWithAppId(_neftaAppId, (InitConfiguration initConfig) => {
+                Debug.Log($"Should skip Nefta optimization? {initConfig._skipOptimization} for {initConfig._nuid}");
+            });
             
             var requestConfiguration = new RequestConfiguration();
 #if UNITY_IPHONE
@@ -45,9 +44,9 @@ namespace AdDemo
             requestConfiguration.TestDeviceIds.Add("284dcf66160f8ea305826b4cc2abe58e");
             requestConfiguration.TestDeviceIds.Add("b78b6e076ab7de99a8eb15adb2ab2634");
 #else
-            //requestConfiguration.TestDeviceIds.Add("9429116F2099040F92F84E023664B484");
-            //requestConfiguration.TestDeviceIds.Add("0D61331B015C8F81BCEEC7FD449CDEE7");
-            //requestConfiguration.TestDeviceIds.Add("40E5105E483D16020842051E0FFDCB4D");
+            requestConfiguration.TestDeviceIds.Add("9429116F2099040F92F84E023664B484");
+            requestConfiguration.TestDeviceIds.Add("0D61331B015C8F81BCEEC7FD449CDEE7");
+            requestConfiguration.TestDeviceIds.Add("40E5105E483D16020842051E0FFDCB4D");
 #endif
             MobileAds.SetRequestConfiguration(requestConfiguration);
         }

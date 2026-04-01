@@ -27,7 +27,7 @@ namespace AdDemo
         private static void OnCloseBridge() { _actions.Enqueue(OnClose); }
 
         [DllImport ("__Internal")]
-        private static extern void NetworkConfig_Open(string title, OnCallback onShow, OnCallback onClick, OnCallback onReward, OnCallback onClose);
+        private static extern void NDebug_Open(string title, OnCallback onShow, OnCallback onClick, OnCallback onReward, OnCallback onClose);
 #elif UNITY_ANDROID
         private class AdCallback : AndroidJavaProxy
         {
@@ -36,7 +36,7 @@ namespace AdDemo
             public Action _onReward;
             public Action _onClose;
             
-            public AdCallback() : base("com.nefta.networkconfig.Callback") { }
+            public AdCallback() : base("com.nefta.debug.Callback") { }
         
             public void onShow() { _actions.Enqueue(_onShow); }
             public void onClick() { _actions.Enqueue(_onClick); }
@@ -59,13 +59,13 @@ namespace AdDemo
             OnShow();
             _ = CloseAfterDelay();
 #elif UNITY_IOS
-            NetworkConfig_Open(title, OnShowBridge, OnClickBridge, OnRewardBridge, OnCloseBridge);
+            NDebug_Open(title, OnShowBridge, OnClickBridge, OnRewardBridge, OnCloseBridge);
 #elif UNITY_ANDROID
             var unityClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             var unityActivity = unityClass.GetStatic<AndroidJavaObject>("currentActivity"); 
 
-            var networkConfigClass = new AndroidJavaClass("com.nefta.networkconfig.NetworkConfig");
-            networkConfigClass.CallStatic("Open", title, unityActivity, new AdCallback { _onShow = onShow, _onClick = onClick, _onReward = onReward, _onClose = onClose });
+            var debugClass = new AndroidJavaClass("com.nefta.debug.NDebug");
+            debugClass.CallStatic("Open", title, unityActivity, new AdCallback { _onShow = onShow, _onClick = onClick, _onReward = onReward, _onClose = onClose });
 #endif
         }
 

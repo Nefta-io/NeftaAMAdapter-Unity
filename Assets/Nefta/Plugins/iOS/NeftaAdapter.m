@@ -1,7 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <WebKit/WebKit.h>
 #import <NeftaSDK/NeftaSDK-Swift.h>
-#import <GADNeftaAdapter.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,14 +10,13 @@ extern "C" {
     
     void EnableLogging(bool enable);
     void NeftaPlugin_SetExtraParameter(const char *key, const char *value);
-    void NeftaPlugin_Init(const char *appId, OnReady onReady, OnInsights onInsights);
+    void NeftaPlugin_Init(const char *appId, const char *clientId, OnReady onReady, OnInsights onInsights);
     void NeftaPlugin_Record(int type, int category, int subCategory, const char *name, long value, const char *customPayload);
     void NeftaPlugin_OnExternalMediationRequest(const char *provider, int adType, const char *id0, const char *requestedAdUnitId, double requestedFloorPrice, int adOpportunityId);
     void NeftaPlugin_OnExternalMediationResponseAsString(const char *provider, const char *id0, const char *id2, double revenue, const char *precision, int status, const char *providerStatus, const char *networkStatus, const char *baseString);
     void NeftaPlugin_OnExternalMediationImpressionAsString(bool isClick, const char *provider, const char *data, const char *id0, const char *id2);
     const char * NeftaPlugin_GetNuid(bool present);
-    void NeftaPlugin_SetContentRating(const char *rating);
-    void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId, int timeoutInSeconds);
+    void NeftaPlugin_GetInsights(int requestId, int insights, int previousAdOpportunityId);
     void NeftaPlugin_SetOverride(const char *root);
 #ifdef __cplusplus
 }
@@ -36,12 +34,12 @@ void NeftaPlugin_SetExtraParameter(const char *key, const char *value) {
     [NeftaPlugin SetExtraParameterWithKey: k value: v];
 }
 
-void NeftaPlugin_Init(const char *appId, OnReady onReady, OnInsights onInsights) {
-    _plugin = [NeftaPlugin InitWithAppId: [NSString stringWithUTF8String: appId] integration: @"unity-google-admob"];
-    _plugin.OnReadyAsString = ^void(NSString * _Nullable initConfig) {
-        const char *iC = initConfig ? [initConfig UTF8String] : NULL;
-        onReady(iC);
-    };
+void NeftaPlugin_Init(const char *appId, const char *clientId, OnReady onReady, OnInsights onInsights) {
+	NSString *a = appId ? [NSString stringWithUTF8String: appId] : nil;
+	NSString *c = clientId ? [NSString stringWithUTF8String: clientId] : nil;
+    _plugin = [NeftaPlugin UnityInitWithAppId: a clientId: c onReadyAsString: ^void(NSString * _Nonnull initConfig) {
+        onReady([initConfig UTF8String] );
+    } integration: @"unity-google-admob" mediationVersion: @"/"];
     _plugin.OnInsightsAsString = ^void(NSInteger requestId, NSInteger adapterResponseType, NSString * _Nullable adapterResponse) {
         const char *aR = adapterResponse ? [adapterResponse UTF8String] : NULL;
         onInsights((int)requestId, (int)adapterResponseType, aR);
@@ -87,12 +85,8 @@ const char * NeftaPlugin_GetNuid(bool present) {
     return returnString;
 }
 
-void NeftaPlugin_SetContentRating(const char *rating) {
-    [_plugin SetContentRatingWithRating: [NSString stringWithUTF8String: rating]];
-}
-
-void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId, int timeoutInSeconds) {
-    [_plugin GetInsightsBridge: requestId insights: insights previousRequestId: previousRequestId timeout: timeoutInSeconds];
+void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId) {
+    [_plugin GetInsightsBridge: requestId insights: insights previousRequestId: previousRequestId];
 }
 
 void NeftaPlugin_SetOverride(const char *root) {
