@@ -28,11 +28,10 @@ namespace Nefta
         }
         
         [Serializable]
-        internal class InitConfigurationDto
+        public class InitConfigurationDto
         {
             public bool skipOptimization;
             public string nuid;
-            public string providerAdUnits;
             public int disabledFeatures;
             public float[] delays;
         }
@@ -614,29 +613,36 @@ namespace Nefta
         {
             _mainContext.Post(_ =>
             {
-                var initDto = JsonUtility.FromJson<InitConfigurationDto>(initConfig);
-                if (initDto == null)
+                InitConfigurationDto initDto = null;
+                try
                 {
-                    initDto = new InitConfigurationDto();
+                    initDto = JsonUtility.FromJson<InitConfigurationDto>(initConfig);
                 }
-                _disabledFeatures = (Feature)initDto.disabledFeatures;
-                _delays.Clear();
-                if (initDto.delays != null)
+                catch (Exception e)
                 {
-                    foreach (var delay in initDto.delays)
+                    // ignored
+                }
+                
+                _delays.Clear();
+                if (initDto != null)
+                {
+                    _disabledFeatures = (Feature)initDto.disabledFeatures;
+                    if (initDto.delays != null)
                     {
-                        _delays.Add(delay);
-                    }
+                        foreach (var delay in initDto.delays)
+                        {
+                            _delays.Add(delay);
+                        }
+                    }   
                 }
                 if (_delays.Count == 0)
                 {
                     _delays.Add(2);
                 }
-
-                var initConfiguration = new InitConfiguration(initDto.skipOptimization, initDto.nuid, initDto.providerAdUnits);
+                
                 if (_onReady != null)
                 {
-                    _onReady.Invoke(initConfiguration);
+                    _onReady.Invoke(new InitConfiguration(initDto));
                 }
             }, null);
         }

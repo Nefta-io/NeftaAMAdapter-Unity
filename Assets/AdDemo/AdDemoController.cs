@@ -35,7 +35,7 @@ namespace AdDemo
             
             Adapter.EnableLogging(true);
             Adapter.InitWithAppId(_neftaAppId, (InitConfiguration initConfig) => {
-                Debug.Log($"Should skip Nefta optimization? {initConfig._skipOptimization} for {initConfig._nuid}");
+                Debug.Log($"Should skip Nefta optimization: {initConfig._skipOptimization} for: {initConfig._nuid}");
             });
             
             var requestConfiguration = new RequestConfiguration();
