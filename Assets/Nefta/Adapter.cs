@@ -32,18 +32,9 @@ namespace Nefta
         {
             public bool skipOptimization;
             public string nuid;
-            public int disabledFeatures;
             public float[] delays;
-        }
-        
-        [Flags]
-        private enum Feature {
-            Insights = 1,
-            GameEvents = 1 << 1,
-            ExternalMediationResponse = 1 << 2,
-            ExternalMediationRequest = 1 << 3,
-            ExternalMediationImpression = 1 << 4,
-            ExternalMediationClick = 1 << 5
+            public int noDynamicResponseRetryInMs;
+            public int noDefaultResponseRetryInMs;
         }
 
         public struct ExtParams
@@ -151,7 +142,6 @@ namespace Nefta
 
         private static List<InsightRequest> _insightRequests;
         private static int _insightId;
-        private static Feature _disabledFeatures;
         private static List<float> _delays;
 
         private static SynchronizationContext _mainContext;
@@ -201,11 +191,6 @@ namespace Nefta
 
         public static void Record(GameEvent gameEvent)
         {
-            if ((_disabledFeatures & Feature.GameEvents) != 0)
-            {
-                return;
-            }
-            
             var type = gameEvent._eventType;
             var category = gameEvent._category;
             var subCategory = gameEvent._subCategory;
@@ -217,11 +202,6 @@ namespace Nefta
 
         internal static void Record(int type, int category, int subCategory, string name, long value, string customPayload)
         {
-            if ((_disabledFeatures & Feature.GameEvents) != 0)
-            {
-                return;
-            }
-            
 #if UNITY_EDITOR
             _plugin.Record(type, category, subCategory, name, value, customPayload);
 #elif UNITY_IOS
@@ -247,11 +227,6 @@ namespace Nefta
         
         private static void OnExternalMediationRequest(AdType adType, AdRequest request, string adUnitId, double requestedFloorPrice, int requestId)
         {
-            if ((_disabledFeatures & Feature.ExternalMediationRequest) != 0)
-            {
-                return;
-            }
-            
             var id = request.GetHashCode().ToString();
             AMRequest amRequest = null;
             foreach (var amr in _amRequests)
@@ -347,11 +322,6 @@ namespace Nefta
 
         private static void OnExternalMediationResponse(string id, string id2, double revenue, string precision, int status, string providerStatus, ResponseInfo responseInfo)
         {
-            if ((_disabledFeatures & Feature.ExternalMediationResponse) != 0)
-            {
-                return;
-            }
-            
             if (id2 != null)
             {
                 for (var i = _amRequests.Count - 1; i >= 0; i--)
@@ -416,12 +386,6 @@ namespace Nefta
 
         private static void OnExternalMediationImpression(bool isClick, string id2, ResponseInfo responseInfo, AdValue adValue)
         {
-            if (!isClick && (_disabledFeatures & Feature.ExternalMediationImpression) != 0 ||
-                isClick && (_disabledFeatures & Feature.ExternalMediationClick) != 0)
-            {
-                return;
-            }
-            
             string adUnitId = null;
             for (var i = _amRequests.Count - 1; i >= 0; i--)
             {
@@ -620,20 +584,19 @@ namespace Nefta
                 }
                 catch (Exception e)
                 {
-                    // ignored
+                    Debug.Log("IOnReady error: " + e.Message);
                 }
                 
                 _delays.Clear();
                 if (initDto != null)
                 {
-                    _disabledFeatures = (Feature)initDto.disabledFeatures;
                     if (initDto.delays != null)
                     {
                         foreach (var delay in initDto.delays)
                         {
                             _delays.Add(delay);
                         }
-                    }   
+                    }
                 }
                 if (_delays.Count == 0)
                 {
