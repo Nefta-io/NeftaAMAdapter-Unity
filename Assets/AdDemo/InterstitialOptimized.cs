@@ -1,24 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Threading.Tasks;
 using GoogleMobileAds.Api;
 using Nefta;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace AdDemo
 {
-    public class Rewarded : MonoBehaviour
+    public class InterstitialOptimized : IInterstitial
     {
-#if UNITY_IPHONE
-        private const string AdUnitA = "ca-app-pub-1193175835908241/1793039068";
-        private const string AdUnitB = "ca-app-pub-1193175835908241/9522486356";
-#else
-        private const string AdUnitA = "ca-app-pub-1193175835908241/2054545908";
-        private const string AdUnitB = "ca-app-pub-1193175835908241/8239541882";
-#endif
-
         public enum State
         {
             Idle,
@@ -27,22 +17,22 @@ namespace AdDemo
             Ready,
             Shown
         }
-
+        
         public class Track
         {
             public readonly string AdUnitId;
             public double FloorPrice;
             public AdRequest Request;
-            public RewardedAd Ad;
+            public InterstitialAd Ad;
             public State State;
             public AdInsight Insight;
-
+            
             public Track(string adUnitId)
             {
                 AdUnitId = adUnitId;
             }
-            
-            private void OnLoadCallbackOnMain(RewardedAd ad, LoadAdError error)
+
+            private void OnLoadCallbackOnMain(InterstitialAd ad, LoadAdError error)
             {
                 if (error != null)
                 {
@@ -62,10 +52,10 @@ namespace AdDemo
                     RestartAfterFailedLoad();
                     return;
                 }
-                
+                        
                 Insight = null;
-                State = State.Ready;
                 Ad = ad;
+                State = State.Ready;
 
                 ad.OnAdPaid += OnAdPaid;
                 ad.OnAdImpressionRecorded += OnAdImpressionRecorded;
@@ -152,8 +142,8 @@ namespace AdDemo
                     });
                 }
             }
-            
-            public void OnLoadCallback(RewardedAd ad, LoadAdError error)
+
+            public void OnLoadCallback(InterstitialAd ad, LoadAdError error)
             {
                 lock (_mainThreadQueue)
                 {
@@ -187,17 +177,24 @@ namespace AdDemo
         
         private Track _trackA;
         private Track _trackB;
-        private bool _isFirstResponseReceived;
+        private bool _isFirstResponseReceived = true;
         
-        [SerializeField] private Toggle _load;
-        [SerializeField] private Button _show;
-        [SerializeField] private Text _status;
+        private static readonly Queue<Action> _mainThreadQueue = new();
+
+        private InterstitialUi _ui;
+        public static InterstitialOptimized Instance;
+
+        public void Init(InterstitialUi ui)
+        {
+            _ui = ui;
+            
+            Instance = this;
+            
+            _trackA = new Track(InterstitialUi.AdUnitA);
+            _trackB = new Track(InterstitialUi.AdUnitB);
+        }
         
-        private static readonly Queue<Action> _mainThreadQueue = new Queue<Action>();
-        
-        public static Rewarded Instance;
-        
-        private void LoadTracks()
+        public void Load()
         {
             LoadTrack(_trackA, _trackB.State);
             LoadTrack(_trackB, _trackA.State);
@@ -225,9 +222,9 @@ namespace AdDemo
         {
             track.State = State.LoadingWithInsights;
             
-            Adapter.GetInsights(Insights.Rewarded, track.Insight, (Insights insights) =>
+            Adapter.GetInsights(Insights.Interstitial, track.Insight, (Insights insights) =>
             {
-                var insight = insights._rewarded;
+                var insight = insights._interstitial;
                 if (insight != null)
                 {
                     track.Insight = insight;
@@ -249,11 +246,11 @@ namespace AdDemo
                     {
                         { "mediation group key", mediationGroup },
                     };
-                    
+
                     Adapter.OnExternalMediationRequest(insight, track.Request, insight._adUnit);
 
                     SetStatus($"Loading {insight._adUnit} as Optimized with {track.FloorPrice}");
-                    RewardedAd.Load(insight._adUnit, track.Request, track.OnLoadCallback);
+                    InterstitialAd.Load(insight._adUnit, track.Request, track.OnLoadCallback);
                 }
                 else
                 {
@@ -268,36 +265,14 @@ namespace AdDemo
             
             track.FloorPrice = 0;
             track.Request = new AdRequest();
-
+            
             Adapter.OnExternalMediationRequest(Adapter.AdType.Interstitial, track.Request, track.AdUnitId);
-
+            
             SetStatus($"Loading {track.AdUnitId} as Default");
-            RewardedAd.Load(track.AdUnitId, track.Request, track.OnLoadCallback);
-        }
-
-        private void Awake()
-        {
-            Instance = this;
-            
-            _trackA = new Track(AdUnitA);
-            _trackB = new Track(AdUnitB);
-            
-            _load.onValueChanged.AddListener(OnLoadChanged);
-            _show.onClick.AddListener(OnShowClick);
-            _show.interactable = false;
-
-            SetStatus("Rewarded status");
+            InterstitialAd.Load(track.AdUnitId, track.Request, track.OnLoadCallback);
         }
         
-        private void OnLoadChanged(bool isOn)
-        {
-            if (isOn)
-            {
-                LoadTracks();   
-            }
-        }
-        
-        private void OnShowClick()
+        public void Show()
         {
             var isShown = false;
             if (_trackA.State == State.Ready)
@@ -315,61 +290,54 @@ namespace AdDemo
             {
                 TryShow(_trackB);
             }
-            UpdateShowButton();
+            UpdateAvailability();
         }
-        
-        public bool TryShow(Track request)
+
+        public bool TryShow(Track track)
         {
-            request.FloorPrice = 0;
-            if (request.Ad.CanShowAd())
+            track.FloorPrice = 0;
+            if (track.Ad.CanShowAd())
             {
-                request.State = State.Shown;
-                request.Ad.Show(
-                    (Reward reward) =>
-                    {
-                        lock (_mainThreadQueue)
-                        {
-                            _mainThreadQueue.Enqueue(() => { SetStatus($"Reward granted: {reward.Amount} {reward.Type}"); });
-                        }
-                    });
+                track.State = State.Shown;
+                track.Ad.Show();
                 return true;
             }
-            request.State = State.Idle;
+            track.State = State.Idle;
             RetryLoadTracks();
             return false;
         }
         
         public void RetryLoadTracks()
         {
-            if (_load.isOn)
+            if (_ui.IsAutoLoad)
             {
-                LoadTracks();
+                Load();
             }
         }
         
         public void OnTrackLoad(bool success)
         {
+            SetStatus($"OnTrackLoad {success}");
             if (success)
             {
-                UpdateShowButton();
+                UpdateAvailability();
             }
 
             _isFirstResponseReceived = true;
             RetryLoadTracks();
         }
-        
+
         private void SetStatus(string status)
         {
-            Debug.Log($"NeftaPluginAM Rewarded {status}");
-            _status.text = status;
+            _ui.SetStatus(status);
         }
         
-        private void UpdateShowButton()
+        private void UpdateAvailability()
         {
-            _show.interactable = _trackA.State == State.Ready || _trackB.State == State.Ready;
+            _ui.SetAvailability(_trackA.State == State.Ready || _trackB.State == State.Ready);
         }
         
-        private void Update()
+        public void OnUpdate()
         {
             lock (_mainThreadQueue)
             {

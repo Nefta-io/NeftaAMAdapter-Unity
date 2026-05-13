@@ -14,28 +14,22 @@ namespace AdDemo
 #endif
         
         [SerializeField] private Text _title;
+        [SerializeField] private GameObject _groupPanel;
+        [SerializeField] private Button _defaultButton;
+        [SerializeField] private Button _optimizedButton;
+        [SerializeField] private Button _simulatorButton;
         
-        private bool _isSimulator;
+        [SerializeField] private InterstitialUi _interstitialUi;
+        [SerializeField] private RewardedUi _rewardedUi;
+        
+        [SerializeField] private InterstitialSim _interstitialSimulator;
+        [SerializeField] private RewardedSim _rewardedSimulator;
         
         private void Awake()
         {
-            var debugParams = GetDebugParameters();
-            if (debugParams != null)
-            {
-                Adapter.SetOverride(debugParams[0]);
-            }
-            
-            var demoConfig = Resources.Load<DemoConfig>("DemoConfig");
-            if (demoConfig != null)
-            {
-                ToggleUI(demoConfig._isSimulator);
-                
-                _title.GetComponent<Button>().onClick.AddListener(() => ToggleUI(!_isSimulator));
-            }
-            
             Adapter.EnableLogging(true);
             Adapter.InitWithAppId(_neftaAppId, (InitConfiguration initConfig) => {
-                Debug.Log($"Should skip Nefta optimization: {initConfig._skipOptimization} for: {initConfig._nuid}");
+                Debug.Log($"Nefta Initialized, nuid: {initConfig._nuid}");
             });
             
             var requestConfiguration = new RequestConfiguration();
@@ -49,42 +43,34 @@ namespace AdDemo
             requestConfiguration.TestDeviceIds.Add("40E5105E483D16020842051E0FFDCB4D");
 #endif
             MobileAds.SetRequestConfiguration(requestConfiguration);
+            
+            _defaultButton.onClick.AddListener(OnDefaultClick);
+            _optimizedButton.onClick.AddListener(OnOptimizedClick);
+            _simulatorButton.onClick.AddListener(OnSimulatorClick);
         }
         
-        private string[] GetDebugParameters()
+        private void OnDefaultClick()
         {
-            string root = null;
-#if UNITY_EDITOR
-            //root = "http://192.168.0.216:8080";
-#elif UNITY_IOS
-            string[] args = System.Environment.GetCommandLineArgs();
-            if (args.Length > 1)
-            {
-                root = args[1];
-            }
-#elif UNITY_ANDROID
-            AndroidJavaClass unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
-            AndroidJavaObject currentActivity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
-            AndroidJavaObject intent = currentActivity.Call<AndroidJavaObject>("getIntent");
-            root = intent.Call<string>("getStringExtra", "override");
-#endif
-            if (!string.IsNullOrEmpty(root))
-            {
-                return new[]{ root };
-            }
-
-            return null;
+            _groupPanel.SetActive(false);
+            
+            _interstitialUi.Init(new InterstitialDefault());
+            _rewardedUi.Init(new RewardedDefault());
         }
         
-        private void ToggleUI(bool isSimulator)
+        private void OnOptimizedClick()
         {
-            _isSimulator = isSimulator;
+            _groupPanel.SetActive(false);
             
-            transform.Find("pnl_content/InterstitialSimulatorController").gameObject.SetActive(isSimulator);
-            transform.Find("pnl_content/RewardedSimulatorController").gameObject.SetActive(isSimulator);
+            _interstitialUi.Init(new InterstitialOptimized());
+            _rewardedUi.Init(new RewardedOptimized());
+        }
+        
+        private void OnSimulatorClick()
+        {
+            _groupPanel.SetActive(false);
             
-            transform.Find("pnl_content/InterstitialController").gameObject.SetActive(!isSimulator);
-            transform.Find("pnl_content/RewardedController").gameObject.SetActive(!isSimulator);
+            _interstitialSimulator.Init();
+            _rewardedSimulator.Init();
         }
     }
 }

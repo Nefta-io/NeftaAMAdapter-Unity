@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using GoogleMobileAds.Api;
@@ -304,7 +303,7 @@ namespace AdDemo
             SRewardedAd.Load(track.AdUnitId, track.Request, track.OnLoadCallback);
         }
 
-        private void Awake()
+        public void Init()
         {
             Instance = this;
             
@@ -327,7 +326,7 @@ namespace AdDemo
             _show.onClick.AddListener(OnShowClick);
             _show.interactable = false;
 
-            SetStatus("Rewarded status");
+            gameObject.SetActive(true);
         }
         
         private void OnLoadChanged(bool isOn)

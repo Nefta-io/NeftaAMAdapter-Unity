@@ -299,8 +299,8 @@ namespace AdDemo
             SetStatus($"Loading {track.AdUnitId} as Default");
             SInterstitialAd.Load(track.AdUnitId, track.Request, track.OnLoadCallback);
         }
-        
-        private void Awake()
+
+        public void Init()
         {
             Instance = this;
 
@@ -322,8 +322,7 @@ namespace AdDemo
             _load.onValueChanged.AddListener(OnLoadChanged);
             _show.onClick.AddListener(OnShowClick);
             _show.interactable = false;
-            
-            SetStatus("Interstitial status");
+            gameObject.SetActive(true);
         }
 
         private void OnLoadChanged(bool isOn)
